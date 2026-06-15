@@ -17,9 +17,10 @@ interface CloseShiftModalProps {
   onConfirm: (amount: number, note: string) => void;
   onCancel: () => void;
   summary?: ShiftSummary;
+  blindClose?: boolean;
 }
 
-export default function CloseShiftModal({ onConfirm, onCancel, summary }: CloseShiftModalProps) {
+export default function CloseShiftModal({ onConfirm, onCancel, summary, blindClose }: CloseShiftModalProps) {
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,10 +32,10 @@ export default function CloseShiftModal({ onConfirm, onCancel, summary }: CloseS
     setLoading(false);
   };
 
-  // Real-time difference
+  // Real-time difference (only when not blind)
   const parsed = parseFloat(amount);
   const expected = summary?.expectedAmount ?? null;
-  const difference = expected !== null && !isNaN(parsed) ? parsed - expected : null;
+  const difference = !blindClose && expected !== null && !isNaN(parsed) ? parsed - expected : null;
 
   return (
     <ModalPortal>
@@ -43,12 +44,14 @@ export default function CloseShiftModal({ onConfirm, onCancel, summary }: CloseS
         <div>
           <h2 style={{ fontSize: "20px", fontWeight: 700, color: "var(--red)" }}>Cerrar Turno</h2>
           <p style={{ color: "var(--text-2)", fontSize: "14px", marginBottom: "16px" }}>
-            Contá el efectivo del cajón e ingresá el monto.
+            {blindClose
+              ? "Contá el efectivo del cajón e ingresá el monto. El resultado se verá después del cierre."
+              : "Contá el efectivo del cajón e ingresá el monto."}
           </p>
         </div>
 
-        {/* Shift summary panel */}
-        {summary && (
+        {/* Shift summary panel — hidden in blind mode */}
+        {summary && !blindClose && (
           <div
             style={{
               background: "var(--surface-2)",
@@ -119,7 +122,7 @@ export default function CloseShiftModal({ onConfirm, onCancel, summary }: CloseS
           {amount ? `$ ${amount}` : "Efectivo en caja"}
         </div>
 
-        {/* Real-time difference indicator */}
+        {/* Real-time difference indicator — hidden in blind mode */}
         {difference !== null && (
           <div
             style={{

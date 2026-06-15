@@ -26,6 +26,7 @@ export interface Branch {
   primaryColor: string | null;
   bgColor: string | null;
   allowNegativeStock: boolean;
+  blindClose: boolean;
   mpUserId: string | null;
   mpStoreId: string | null;
   mpPosId: string | null;

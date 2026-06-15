@@ -149,7 +149,7 @@ function isPositiveFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
-function buildGridProduct(record: ProductGridInventory, allowNegativeStock: boolean, negativeReservationsByKey: Map<string, number> = new Map()) {
+function buildGridProduct(record: ProductGridInventory, allowNegativeStock: boolean, blindClose: boolean, negativeReservationsByKey: Map<string, number> = new Map()) {
   const baseNegative = negativeReservationsByKey.get(lotKey(record.product.id)) ?? 0;
   const baseAvailableStock = record.stock === null ? null : record.stock - baseNegative;
   const baseFlags = getStockFlags(baseAvailableStock, record.minStock);
@@ -242,6 +242,7 @@ function buildGridProduct(record: ProductGridInventory, allowNegativeStock: bool
     showInGrid: record.showInGrid,
     readyForSale,
     allowNegativeStock,
+    blindClose,
     categoryShowInGrid: record.product.category?.showInGrid ?? true,
     expiredQuantity: 0,
     expiringSoonQuantity: 0,
@@ -382,6 +383,7 @@ export async function GET(req: Request) {
         where: { id: branchId },
         select: {
           allowNegativeStock: true,
+          blindClose: true,
           kiosco: { select: { expiryAlertDays: true } },
         },
       })
@@ -454,7 +456,7 @@ export async function GET(req: Request) {
       return map;
     }, new Map<string, number>());
 
-    const products = inventory.map((record) => buildGridProduct(record, allowNegativeStock, negativeReservationsByKey));
+    const products = inventory.map((record) => buildGridProduct(record, allowNegativeStock, branchSettings?.blindClose ?? false, negativeReservationsByKey));
     return NextResponse.json(products);
   }
 

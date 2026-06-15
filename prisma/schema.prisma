@@ -85,7 +85,8 @@ model Kiosco {
   platformProductSubmissions      PlatformProductSubmission[]
   products                        Product[]
   referral                        Referral?
-  subscription                    Subscription?
+  subscription                Subscription?
+  suppliers                   Supplier[]
 }
 
 model Branch {
@@ -107,6 +108,7 @@ model Branch {
   accessKey                 String?                    @unique
   activeShiftId             String?                    @unique
   allowNegativeStock        Boolean                    @default(false)
+  blindClose                Boolean                    @default(false)
   address                   String?
   phone                     String?
   ticketCounter             Int                        @default(0)
@@ -131,6 +133,7 @@ model Branch {
   ticketSettings            TicketSettings?
   variantInventories        VariantInventory[]
   withdrawals               Withdrawal[]
+  cartRemovals              CartRemoval[]
   employees                 Employee[]                 @relation("BranchToEmployee")
 
   @@index([kioscoId])
@@ -448,6 +451,7 @@ model Employee {
   sales          Sale[]         @relation("CreatedBy")
   shifts         Shift[]
   withdrawals    Withdrawal[]   @relation("CreatedBy")
+  cartRemovals   CartRemoval[]  @relation("CreatedBy")
   branches       Branch[]       @relation("BranchToEmployee")
 
   @@index([kioscoId])
@@ -471,6 +475,7 @@ model Shift {
   branch          Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
   employee        Employee?    @relation(fields: [employeeId], references: [id])
   withdrawals     Withdrawal[]
+  cartRemovals    CartRemoval[]
 
   @@index([branchId, openedAt])
 }
@@ -518,6 +523,24 @@ model Withdrawal {
   branchId            String
   createdAt           DateTime  @default(now())
   createdByEmployeeId String?
+  branch              Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  createdByEmployee   Employee? @relation("CreatedBy", fields: [createdByEmployeeId], references: [id])
+  shift               Shift?    @relation(fields: [shiftId], references: [id])
+
+  @@index([branchId, createdAt])
+}
+
+model CartRemoval {
+  id                  String    @id @default(cuid())
+  branchId            String
+  shiftId             String?
+  productId           String?
+  variantId           String?
+  productName         String
+  price               Float
+  quantity            Int
+  createdByEmployeeId String?
+  createdAt           DateTime  @default(now())
   branch              Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
   createdByEmployee   Employee? @relation("CreatedBy", fields: [createdByEmployeeId], references: [id])
   shift               Shift?    @relation(fields: [shiftId], references: [id])
@@ -580,6 +603,8 @@ model Invoice {
   lastError                 String?
   afipRawResponse           Json?
   emitterSnapshot           Json
+  fiscalJobId               String?
+  fiscalWorkerEnv           String?
   createdAt                 DateTime      @default(now())
   updatedAt                 DateTime      @updatedAt
   branch                    Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
@@ -612,11 +637,12 @@ model SaleItem {
 }
 
 model CreditCustomer {
-  id        String          @id @default(cuid())
-  name      String
-  phone     String?
-  balance   Float           @default(0)
-  branchId  String
+  id          String          @id @default(cuid())
+  name        String
+  phone       String?
+  balance     Float           @default(0)
+  creditLimit Float?
+  branchId    String
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   branch    Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
@@ -641,15 +667,18 @@ model RestockEvent {
   branchId        String
   createdAt       DateTime               @default(now())
   supplierName    String?
+  supplierId      String?
   type            RestockEventType       @default(RECEIVE)
   valuationStatus RestockValuationStatus @default(PENDING)
   attachments     RestockAttachment[]
   branch          Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
   employee        Employee?              @relation(fields: [employeeId], references: [id])
+  supplier        Supplier?              @relation(fields: [supplierId], references: [id])
   items           RestockItem[]
 
   @@index([branchId])
   @@index([employeeId])
+  @@index([supplierId])
   @@index([branchId, type, createdAt])
 }
 
@@ -839,6 +868,20 @@ model SubscriptionPriceOverride {
   updatedAt       DateTime @updatedAt
 
   @@index([updatedAt])
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  kioscoId  String
+  name      String
+  phone     String?
+  email     String?
+  note      String?
+  createdAt DateTime @default(now())
+  kiosco    Kiosco   @relation(fields: [kioscoId], references: [id], onDelete: Cascade)
+  restocks  RestockEvent[]
+
+  @@index([kioscoId])
 }
 
 model AccessGrant {

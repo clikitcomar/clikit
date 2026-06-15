@@ -49,6 +49,9 @@ export default function TicketsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [returningId, setReturningId] = useState<string | null>(null);
+  const [returnReason, setReturnReason] = useState("");
+  const [showReturnModal, setShowReturnModal] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
   const [employeeId, setEmployeeId] = useState("");
@@ -124,6 +127,31 @@ export default function TicketsPage() {
   useEffect(() => {
     void fetchTickets();
   }, [fetchTickets]);
+
+  const handleReturn = async (saleId: string) => {
+    setReturningId(saleId);
+    try {
+      const res = await fetch(`/api/ventas/${saleId}/devolver`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-branch-id": branchId },
+        body: JSON.stringify({ reason: returnReason }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        alert(data?.error || "No se pudo procesar la devolución.");
+        return;
+      }
+
+      setShowReturnModal(null);
+      setReturnReason("");
+      await fetchTickets();
+    } catch {
+      alert("No se pudo procesar la devolución.");
+    } finally {
+      setReturningId(null);
+    }
+  };
 
   const totalAmount = useMemo(
     () => tickets.reduce((sum, ticket) => sum + ticket.total, 0),
@@ -308,7 +336,30 @@ export default function TicketsPage() {
 
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", justifyContent: "space-between", gap: "10px" }}>
                   <span style={{ fontSize: "22px", fontWeight: 800 }}>{formatARS(ticket.total)}</span>
-                  <span style={{ fontSize: "13px", color: "var(--primary)", fontWeight: 700 }}>Ver ticket</span>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    {!ticket.voided && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowReturnModal(ticket.id);
+                        }}
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          color: "var(--red)",
+                          background: "rgba(239,68,68,0.1)",
+                          border: "1px solid rgba(239,68,68,0.2)",
+                          borderRadius: "6px",
+                          padding: "4px 8px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Devolver
+                      </button>
+                    )}
+                    <span style={{ fontSize: "13px", color: "var(--primary)", fontWeight: 700 }}>Ver ticket</span>
+                  </div>
                 </div>
               </button>
             ))}
@@ -325,6 +376,53 @@ export default function TicketsPage() {
         open={exportModalOpen} 
         onOpenChange={setExportModalOpen} 
       />
+
+      {showReturnModal && (
+        <div
+          className="modal-overlay animate-fade-in"
+          onClick={() => { setShowReturnModal(null); setReturnReason(""); }}
+        >
+          <div className="modal animate-slide-up" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "400px" }}>
+            <h2 style={{ fontSize: "20px", fontWeight: 700, color: "var(--red)", marginBottom: "8px" }}>
+              Devolver venta
+            </h2>
+            <p style={{ color: "var(--text-2)", fontSize: "14px", marginBottom: "16px" }}>
+              Se anulará esta venta, se repondrá el stock y se reversará el cobro. Si tiene factura emitida, se creará una Nota de Crédito.
+            </p>
+
+            <label style={{ display: "grid", gap: "6px", marginBottom: "16px" }}>
+              <span style={{ fontSize: "12px", color: "var(--text-3)", fontWeight: 600, textTransform: "uppercase" }}>
+                Motivo (opcional)
+              </span>
+              <input
+                className="input"
+                placeholder="Ej: Producto defectuoso, cliente equivocado..."
+                value={returnReason}
+                onChange={(e) => setReturnReason(e.target.value)}
+                autoFocus
+              />
+            </label>
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                className="btn btn-ghost"
+                style={{ flex: 1 }}
+                onClick={() => { setShowReturnModal(null); setReturnReason(""); }}
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn btn-red"
+                style={{ flex: 2 }}
+                onClick={() => handleReturn(showReturnModal)}
+                disabled={returningId !== null}
+              >
+                {returningId ? "Procesando..." : "Confirmar devolución"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

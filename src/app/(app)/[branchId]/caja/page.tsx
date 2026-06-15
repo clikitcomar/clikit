@@ -64,6 +64,7 @@ interface Product {
   showInGrid?: boolean;
   readyForSale?: boolean;
   allowNegativeStock?: boolean;
+  blindClose?: boolean;
   soldByWeight?: boolean;
   isNegativeStock?: boolean;
   isOutOfStock?: boolean;
@@ -415,6 +416,7 @@ export default function CajaPage() {
   const [showTransferShift, setShowTransferShift] = useState(false);
   const [showTotalsBreakdown, setShowTotalsBreakdown] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [showReminderComposer, setShowReminderComposer] = useState(false);
   const [savingReminder, setSavingReminder] = useState(false);
   const [reminderMessage, setReminderMessage] = useState("");
@@ -443,6 +445,7 @@ export default function CajaPage() {
   const hasPlayedStartupRef = useRef(false);
   const prevPromosCountRef = useRef(0);
   const allowNegativeStock = products[0]?.allowNegativeStock ?? false;
+  const blindClose = products[0]?.blindClose ?? false;
   
   const keyboardScanBufferRef = useRef("");
   const keyboardScanStartedAtRef = useRef(0);
@@ -1614,6 +1617,21 @@ export default function CajaPage() {
   handleBarcodeScanRef.current = handleBarcodeScan;
 
   // ─── Ticket item controls ─────────────────────────────────────────────────
+  const logCartRemoval = useCallback((item: { productId?: string; variantId?: string; name: string; price: number; quantity: number }) => {
+    fetch("/api/caja/cart-removals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-branch-id": branchId },
+      body: JSON.stringify({
+        productId: item.productId ?? null,
+        variantId: item.variantId ?? null,
+        productName: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        shiftId: activeShiftId,
+      }),
+    }).catch(() => {});
+  }, [branchId, activeShiftId]);
+
   const changeQty = (index: number, delta: number) => {
     if (!ensureCanOperateCurrentShift()) {
       return;
@@ -1650,7 +1668,10 @@ export default function CajaPage() {
       }
 
       newTicket[index] = { ...item, quantity: item.quantity + delta * quantityStep };
-      if (newTicket[index].quantity <= 0) newTicket.splice(index, 1);
+      if (newTicket[index].quantity <= 0) {
+        logCartRemoval(item);
+        newTicket.splice(index, 1);
+      }
       return newTicket;
     });
   };
@@ -1662,6 +1683,7 @@ export default function CajaPage() {
     const parsed = ticketItem?.soldByWeight ? parseWeightInputToGrams(rawValue) : parseInt(rawValue, 10);
     setEditingQty(null);
     if (!rawValue.trim() || parsed === null || Number.isNaN(parsed) || parsed <= 0) {
+      if (ticketItem) logCartRemoval(ticketItem);
       setTicket((prev) => prev.filter((_, i) => i !== index));
       return;
     }
@@ -1821,19 +1843,28 @@ export default function CajaPage() {
 
       const now = performance.now();
 
-      // ── F-key shortcuts (browser-safe keys only) ─────────────────────────
-      // We intentionally skip F1, F3, F5, F6, F7, F11, F12 (reserved by browsers/OS).
+      // ── F-key shortcuts ──────────────────────────────────────────────────
+      // F1-F11 available. F7/F12 reserved by browser/OS.
+      if (e.key === "F1" && !e.shiftKey) {
+        // Quick cash sale (exact amount)
+        if (ticket.length > 0 && canOperateCurrentShift && total > 0) {
+          e.preventDefault();
+          handlePay("CASH");
+        }
+        return;
+      }
+
       if (e.key === "F2" && !e.shiftKey) {
         e.preventDefault();
         router.push(`/${branchId}/tickets`);
         return;
       }
 
-      if (e.key === "F8" && !e.shiftKey) {
-        // Gasto de caja
+      if (e.key === "F3" && !e.shiftKey) {
+        // Add manual item ("Otro")
         if (canOperateCurrentShift) {
           e.preventDefault();
-          setShowGasto(true);
+          setShowOtro(true);
         }
         return;
       }
@@ -1847,12 +1878,64 @@ export default function CajaPage() {
         return;
       }
 
+      if (e.key === "F5" && !e.shiftKey) {
+        // Open scanner
+        if (canOperateCurrentShift) {
+          e.preventDefault();
+          setShowScanner(true);
+        }
+        return;
+      }
+
+      if (e.key === "F6" && !e.shiftKey) {
+        // Focus search input
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+
+      if (e.key === "F8" && !e.shiftKey) {
+        // Gasto de caja
+        if (canOperateCurrentShift) {
+          e.preventDefault();
+          setShowGasto(true);
+        }
+        return;
+      }
+
+      if (e.key === "F9" && !e.shiftKey) {
+        // Toggle open/close shift
+        e.preventDefault();
+        if (activeShift && canManageCurrentShift) {
+          setShowCloseShift(true);
+        } else if (!activeShift) {
+          setShowOpenShift(true);
+        }
+        return;
+      }
+
       if (e.key === "F10" && !e.shiftKey) {
         // Panel de turno / totales
         if (activeShift) {
           e.preventDefault();
           setShowTotalsBreakdown(true);
         }
+        return;
+      }
+
+      if (e.key === "F11" && !e.shiftKey) {
+        // Retiro de caja
+        if (canOperateCurrentShift) {
+          e.preventDefault();
+          setShowRetiro(true);
+        }
+        return;
+      }
+
+      if (e.key === "?" && !e.shiftKey && !cajaSearch) {
+        // Show keyboard shortcuts help
+        e.preventDefault();
+        setShowShortcutsHelp(true);
         return;
       }
 
@@ -3257,6 +3340,7 @@ export default function CajaPage() {
         <CloseShiftModal 
           onConfirm={handleCloseShift} 
           onCancel={() => setShowCloseShift(false)}
+          blindClose={blindClose}
           summary={{
             openingAmount: cajaStats.openingAmount ?? activeShift.openingAmount ?? 0,
             ventasEfectivo: cajaStats.ventasEfectivo ?? 0,
@@ -3540,6 +3624,60 @@ export default function CajaPage() {
             setSubscriptionPromptError("");
           }}
         />
+      )}
+
+      {showShortcutsHelp && (
+        <ModalPortal>
+          <div className="modal-overlay animate-fade-in" onClick={() => setShowShortcutsHelp(false)}>
+            <div className="modal animate-slide-up" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "420px" }}>
+              <h2 style={{ fontSize: "20px", fontWeight: 700, marginBottom: "16px" }}>Atajos de Teclado</h2>
+              <div style={{ display: "grid", gap: "8px", fontSize: "13px" }}>
+                {[
+                  ["F1", "Cobro en efectivo (monto exacto)"],
+                  ["F2", "Historial de tickets"],
+                  ["F3", "Agregar item manual (Otro)"],
+                  ["F4", "Asignar cliente fiado"],
+                  ["F5", "Escanear código de barras"],
+                  ["F6", "Buscar producto"],
+                  ["F8", "Registrar gasto"],
+                  ["F9", "Abrir / Cerrar turno"],
+                  ["F10", "Ver desglose de totales"],
+                  ["F11", "Retiro de caja"],
+                  ["+", "Ir a cobrar"],
+                  ["-", "Quitar último item del grid"],
+                  ["Backspace", "Quitar 1 unidad del último item"],
+                  ["Delete", "Limpiar carrito"],
+                  ["↑ ↓", "Navegar productos"],
+                  ["?", "Mostrar esta ayuda"],
+                ].map(([key, desc]) => (
+                  <div key={key} style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                    <span style={{
+                      background: "var(--surface-2)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "6px",
+                      padding: "4px 8px",
+                      fontWeight: 700,
+                      fontSize: "12px",
+                      minWidth: "60px",
+                      textAlign: "center",
+                      fontFamily: "monospace",
+                    }}>
+                      {key}
+                    </span>
+                    <span style={{ color: "var(--text-2)" }}>{desc}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                className="btn btn-ghost"
+                style={{ marginTop: "16px", width: "100%" }}
+                onClick={() => setShowShortcutsHelp(false)}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </ModalPortal>
       )}
     </div>
   );

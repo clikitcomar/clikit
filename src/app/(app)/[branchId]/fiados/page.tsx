@@ -15,6 +15,7 @@ interface CreditCustomer {
   name: string;
   phone: string | null;
   balance: number;
+  creditLimit: number | null;
 }
 
 function phoneHref(phone: string): string {
@@ -29,6 +30,9 @@ export default function FiadosPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [cobrarCustomer, setCobrarCustomer] = useState<CreditCustomer | null>(null);
+  const [editingLimit, setEditingLimit] = useState<CreditCustomer | null>(null);
+  const [limitDraft, setLimitDraft] = useState("");
+  const [savingLimit, setSavingLimit] = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [subscriptionPromptMessage, setSubscriptionPromptMessage] = useState("");
@@ -138,6 +142,42 @@ export default function FiadosPage() {
     }
   };
 
+  const handleSaveCreditLimit = async () => {
+    if (!editingLimit) return;
+    setSavingLimit(true);
+
+    try {
+      const parsed = limitDraft.trim() === "" ? null : parseFloat(limitDraft);
+      if (limitDraft.trim() !== "" && (parsed === null || !Number.isFinite(parsed) || parsed < 0)) {
+        setError("Ingresá un monto válido.");
+        setSavingLimit(false);
+        return;
+      }
+
+      const res = await fetch("/api/fiados/customers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-branch-id": branchId },
+        body: JSON.stringify({ customerId: editingLimit.id, creditLimit: parsed }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.error || "No se pudo guardar el límite.");
+        setSavingLimit(false);
+        return;
+      }
+
+      const updated = await res.json();
+      setCustomers((prev) => prev.map((c) => (c.id === updated.id ? { ...c, creditLimit: updated.creditLimit } : c)));
+      setEditingLimit(null);
+      setLimitDraft("");
+    } catch {
+      setError("No se pudo guardar el límite.");
+    } finally {
+      setSavingLimit(false);
+    }
+  };
+
   const handleActivateSubscription = async () => {
     setActivatingSubscription(true);
     setSubscriptionPromptError("");
@@ -238,6 +278,40 @@ export default function FiadosPage() {
                   <div style={{ color: "var(--amber)", fontWeight: 700, marginTop: "4px" }}>
                     Debe {formatARS(customer.balance)}
                   </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      marginTop: "2px",
+                      fontSize: "12px",
+                      color: "var(--text-3)",
+                    }}
+                  >
+                    <span>
+                      Límite:{" "}
+                      {customer.creditLimit != null ? formatARS(customer.creditLimit) : "Sin límite"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingLimit(customer);
+                        setLimitDraft(customer.creditLimit != null ? String(customer.creditLimit) : "");
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "var(--primary)",
+                        cursor: "pointer",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        padding: 0,
+                        textDecoration: "underline",
+                      }}
+                    >
+                      Editar
+                    </button>
+                  </div>
                 </div>
                 <button className="btn btn-sm btn-ghost" onClick={() => setCobrarCustomer(customer)}>
                   Cobrar
@@ -324,6 +398,65 @@ export default function FiadosPage() {
                     disabled={!payAmount || loading}
                   >
                     {loading ? "..." : "Confirmar cobro"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </ModalPortal>
+        )}
+
+        {editingLimit && (
+          <ModalPortal>
+            <div
+              className="modal-overlay animate-fade-in"
+              onClick={() => {
+                setEditingLimit(null);
+                setLimitDraft("");
+              }}
+            >
+              <div className="modal animate-slide-up" onClick={(e) => e.stopPropagation()}>
+                <h2 style={{ fontSize: "20px", fontWeight: 700 }}>Límite de crédito</h2>
+                <p style={{ color: "var(--text-2)", fontSize: "14px", marginBottom: "16px" }}>
+                  {editingLimit.name} — Debe {formatARS(editingLimit.balance)}
+                </p>
+
+                <label style={{ display: "grid", gap: "6px", marginBottom: "16px" }}>
+                  <span style={{ fontSize: "12px", color: "var(--text-3)", fontWeight: 600, textTransform: "uppercase" }}>
+                    Límite máximo de deuda
+                  </span>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    step="100"
+                    placeholder="Sin límite"
+                    value={limitDraft}
+                    onChange={(e) => setLimitDraft(e.target.value)}
+                    autoFocus
+                  />
+                  <span style={{ fontSize: "11px", color: "var(--text-3)" }}>
+                    Dejá vacío para no tener límite. Si la deuda supera este monto, se pedirá autorización.
+                  </span>
+                </label>
+
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button
+                    className="btn btn-ghost"
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      setEditingLimit(null);
+                      setLimitDraft("");
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    className="btn btn-green"
+                    style={{ flex: 2 }}
+                    onClick={handleSaveCreditLimit}
+                    disabled={savingLimit}
+                  >
+                    {savingLimit ? "Guardando..." : "Guardar"}
                   </button>
                 </div>
               </div>

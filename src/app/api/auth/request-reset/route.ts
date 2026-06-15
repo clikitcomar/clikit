@@ -81,8 +81,7 @@ export async function POST(request: NextRequest) {
         `,
       });
     } else {
-      console.log("[RESET PASSWORD] Token generado:", token);
-      console.log("[RESET PASSWORD] URL:", resetUrl);
+      console.warn("[RESET PASSWORD] RESEND_API_KEY no configurado. Email no enviado.");
     }
 
     return NextResponse.json(

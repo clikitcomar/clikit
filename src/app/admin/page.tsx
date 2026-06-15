@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import AdminRentabilityCalculator from "@/components/admin/AdminRentabilityCalculator";
 import MacroStatsWidget from "@/components/admin/widgets/MacroStatsWidget";
 import OperationsHealthWidget from "@/components/admin/widgets/OperationsHealthWidget";
@@ -34,6 +35,35 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      {/* Quick access cards */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+        gap: "16px",
+        marginBottom: "32px"
+      }}>
+        <Link
+          href="/admin/analisis-productos"
+          style={{
+            padding: "20px",
+            borderRadius: "18px",
+            background: "rgba(15, 23, 42, 0.8)",
+            border: "1px solid rgba(148, 163, 184, 0.18)",
+            textDecoration: "none",
+            color: "#e2e8f0",
+            transition: "all 0.2s",
+          }}
+        >
+          <div style={{ fontSize: "32px", marginBottom: "12px" }}>📊</div>
+          <h3 style={{ margin: "0 0 8px", fontSize: "18px", fontWeight: 700 }}>
+            Análisis de Productos
+          </h3>
+          <p style={{ margin: 0, fontSize: "14px", color: "#94a3b8", lineHeight: 1.5 }}>
+            Top productos más vendidos por cliente. Inteligencia de negocio para asesorar a tus clientes.
+          </p>
+        </Link>
+      </div>
+
       <div className="bento-layout">
         {/* Main Financial & Growth Column */}
         <div className="bento-col-main">
@@ -47,7 +77,7 @@ export default function AdminDashboard() {
           <Suspense fallback={<WidgetSkeleton title="Salud Operacional" />}>
             <OperationsHealthWidget />
           </Suspense>
-          
+
           <Suspense fallback={<WidgetSkeleton title="Programa Partners" />}>
             <PartnersWidget />
           </Suspense>

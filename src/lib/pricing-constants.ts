@@ -17,6 +17,9 @@ export const MP_NETO = 13709.98;
 /** MercadoPago effective fee (list price minus what MP credits). */
 export const MP_FEE = LIST_PRICE - MP_NETO;
 
+/** MercadoPago fee percentage for general sales (not subscription). */
+export const MP_SALES_FEE_PCT = 0.0466; // 4.66% typical for debit/credit in AR
+
 /** Comisión del vendedor sobre la primera factura (50% del precio de lista). */
 export const COMM_FIRST_PCT = 0.50;
 
@@ -34,6 +37,15 @@ export const NET_MONTH1 = MP_NETO - COMM_FIRST_AMT;
 
 /** Ganancia neta del negocio en meses 2+ (por cliente recurrente). */
 export const NET_RECUR = MP_NETO - COMM_RECUR_AMT;
+
+/**
+ * Estimate net amount after MP fees for a given sale total.
+ * Used in reports to show "Recibible estimado" vs "Bruto".
+ */
+export function estimateMpNet(grossAmount: number): number {
+  const fee = Math.round(grossAmount * MP_SALES_FEE_PCT);
+  return grossAmount - fee;
+}
 
 /** Formatting helper: "$14.900" */
 export function formatArs(n: number): string {

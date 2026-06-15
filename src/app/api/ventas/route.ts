@@ -35,6 +35,10 @@ function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+function formatMoney(value: number) {
+  return `$${Math.round(value).toLocaleString("es-AR")}`;
+}
+
 function normalizeClientSaleId(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim().slice(0, 120) : null;
 }
@@ -455,11 +459,17 @@ export async function POST(req: Request) {
 
         const customer = await tx.creditCustomer.findFirst({
           where: { id: requestedCreditCustomerId, branchId },
-          select: { id: true },
+          select: { id: true, balance: true, creditLimit: true },
         });
 
         if (!customer) {
           throw new RouteError("El cliente de fiado no pertenece a esta sucursal.");
+        }
+
+        if (customer.creditLimit != null && customer.balance + total > customer.creditLimit) {
+          throw new RouteError(
+            `El cliente ${customer.creditLimit > 0 ? `supera su límite de ${formatMoney(customer.creditLimit)}` : "no tiene límite de crédito definido"}. Saldo actual: ${formatMoney(customer.balance)} + nueva venta: ${formatMoney(total)} = ${formatMoney(customer.balance + total)}.`,
+          );
         }
 
         creditCustomerId = customer.id;

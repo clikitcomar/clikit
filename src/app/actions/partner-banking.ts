@@ -32,7 +32,5 @@ export async function saveBankingInfo(data: {
     }
   });
 
-  console.log("[BANKING_INFO_SAVED]", { userId: session.user.id });
-
   revalidatePath("/partner");
 }

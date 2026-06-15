@@ -76,7 +76,6 @@ export default function ZapAdSlot({ zone, branchId }: ZapAdSlotProps) {
           e.stopPropagation();
       }
 
-      console.log('Ad clicked:', ad);
       const urlToOpen = ad.action?.url;
 
       if (urlToOpen) {
@@ -90,7 +89,7 @@ export default function ZapAdSlot({ zone, branchId }: ZapAdSlotProps) {
           return;
       }
 
-      console.warn('El anuncio fue clickeado pero no tiene una URL o acción configurada.', ad);
+
   }
 
   // REUSABILITY: Basic styling parameters

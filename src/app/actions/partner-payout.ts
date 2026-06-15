@@ -25,8 +25,6 @@ export async function requestPayout(partnerId: string, amount: number, idempoten
     throw new Error("Monto inválido");
   }
 
-  console.log("[PAYOUT_REQUEST]", { partnerId, amount, idempotencyKey });
-
   const payout = await prisma.$transaction(async (tx) => {
     // Idempotency check — uses unique index, fast and correct
     const existing = await tx.payoutRequest.findUnique({
@@ -34,7 +32,6 @@ export async function requestPayout(partnerId: string, amount: number, idempoten
     });
 
     if (existing) {
-      console.log("[IDEMPOTENT_HIT]", idempotencyKey);
       return existing;
     }
 

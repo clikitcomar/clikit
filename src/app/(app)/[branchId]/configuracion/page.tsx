@@ -18,6 +18,7 @@ import type { TicketPreviewData } from "@/lib/ticket-format";
 import { getTicketPrintModeLabel, type TicketPrintMode } from "@/lib/ticketing";
 import type { Employee, Category, Branch, PricingMode, FiscalEnvironment, Subscription } from "./types";
 import ZapAdSlot from "@/components/ads/ZapAdSlot";
+import SuppliersSection from "./SuppliersSection";
 
 // ─── Employee Form Modal ───────────────────────────────────────────────────────
 function EmployeeModal({
@@ -673,6 +674,7 @@ export default function ConfiguracionPage() {
   const [branchSettingsMessage, setBranchSettingsMessage] = useState<string | null>(null);
   const [branchSettingsError, setBranchSettingsError] = useState<string | null>(null);
   const [allowNegativeStock, setAllowNegativeStock] = useState(false);
+  const [blindClose, setBlindClose] = useState(false);
   const [savingStockRules, setSavingStockRules] = useState(false);
   const [stockRulesMessage, setStockRulesMessage] = useState<string | null>(null);
   const [stockRulesError, setStockRulesError] = useState<string | null>(null);
@@ -810,6 +812,7 @@ export default function ConfiguracionPage() {
     setEditPrimaryColor(branch.primaryColor || "#22c55e");
     setEditBgColor(branch.bgColor || "#0f172a");
     setAllowNegativeStock(branch.allowNegativeStock ?? false);
+    setBlindClose(branch.blindClose ?? false);
     setBranches((prev) => {
       if (prev.some((candidate) => candidate.id === branch.id)) {
         return prev.map((candidate) => (candidate.id === branch.id ? branch : candidate));
@@ -1238,6 +1241,7 @@ export default function ConfiguracionPage() {
         },
         body: JSON.stringify({
           allowNegativeStock,
+          blindClose,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -2167,6 +2171,43 @@ export default function ConfiguracionPage() {
               </button>
             </div>
 
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, marginBottom: "4px" }}>Cierre ciego</div>
+                <div style={{ fontSize: "13px", color: "var(--text-3)", lineHeight: 1.5 }}>
+                  Al cerrar turno, el empleado no ve cuánto debería haber. Solo ingresa lo que contó.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBlindClose((prev) => !prev)}
+                disabled={loadingCurrentBranch || savingStockRules}
+                style={{
+                  width: "52px",
+                  height: "30px",
+                  borderRadius: "99px",
+                  border: "none",
+                  background: blindClose ? "var(--green)" : "var(--border)",
+                  position: "relative",
+                  cursor: loadingCurrentBranch || savingStockRules ? "not-allowed" : "pointer",
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "3px",
+                    left: blindClose ? "25px" : "3px",
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "50%",
+                    background: "#fff",
+                    transition: "left 0.2s",
+                  }}
+                />
+              </button>
+            </div>
+
             <div
               style={{
                 padding: "12px 14px",
@@ -2181,6 +2222,11 @@ export default function ConfiguracionPage() {
               {allowNegativeStock
                 ? "Activo: productos sin stock seguirán visibles en caja, con badges de Sin stock o Stock negativo."
                 : "Inactivo: la sucursal mantiene el comportamiento actual y no deja vender cuando el stock vendible llega a 0."}
+              {blindClose && (
+                <span style={{ display: "block", marginTop: "6px", color: "var(--amber)" }}>
+                  Cierre ciego activo: el empleado no verá el efectivo esperado al cerrar turno.
+                </span>
+              )}
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
@@ -2563,6 +2609,9 @@ export default function ConfiguracionPage() {
 
           <div style={sectionGridStyle}>
 
+      {/* Suppliers Section */}
+      <SuppliersSection branchId={branchId} />
+
       {/* Subscription Section */}
       <section style={{ marginBottom: 0 }}>
         <div style={{ marginBottom: "12px" }}>
@@ -2806,6 +2855,65 @@ export default function ConfiguracionPage() {
           onClose={() => setShowTicketDemo(false)}
         />
       )}
+
+      {/* Backup & Restore Section */}
+      <section style={{ marginBottom: 0 }}>
+        <div style={{ marginBottom: "12px" }}>
+          <h2 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text-2)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            💾 Backup y Restore
+          </h2>
+        </div>
+        <div className="card" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ fontSize: "13px", color: "var(--text-3)", lineHeight: 1.5 }}>
+            Exportá tu catálogo, productos, stock, empleados y configuración. Guardá el archivo en un lugar seguro.
+          </div>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <a
+              href="/api/admin/backup"
+              download
+              className="btn btn-ghost"
+              style={{ border: "1px solid var(--border)", fontSize: "13px", fontWeight: 600, textDecoration: "none" }}
+            >
+              Descargar Backup
+            </a>
+            <label
+              className="btn btn-ghost"
+              style={{ border: "1px solid var(--border)", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+            >
+              Restaurar Backup
+              <input
+                type="file"
+                accept=".json"
+                style={{ display: "none" }}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const text = await file.text();
+                  try {
+                    const data = JSON.parse(text);
+                    if (!confirm("¿Restaurar este backup? Se agregarán los datos al kiosco actual.")) return;
+                    const res = await fetch("/api/admin/restore", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ ...data, mode: "merge" }),
+                    });
+                    const result = await res.json().catch(() => null);
+                    if (!res.ok) {
+                      alert(result?.error || "No se pudo restaurar el backup.");
+                    } else {
+                      alert(`Backup restaurado: ${result.restored?.branches ?? 0} sucursales, ${result.restored?.products ?? 0} productos, ${result.restored?.employees ?? 0} empleados.`);
+                      window.location.reload();
+                    }
+                  } catch {
+                    alert("El archivo no es un backup válido.");
+                  }
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

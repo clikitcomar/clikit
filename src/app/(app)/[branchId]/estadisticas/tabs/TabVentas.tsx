@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { formatARS } from "@/lib/utils";
 import { KpiCard, BarChart, EmptyState } from "@/components/stats";
+import TopProductsPanel from "@/components/stats/TopProductsPanel";
 import type { Periodo } from "@/lib/stats-helpers";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -279,14 +280,14 @@ function VentasTable({
                               venta.invoiceStatus === "ISSUED"
                                 ? "rgba(34,197,94,0.15)"
                                 : venta.invoiceStatus === "FAILED"
-                                ? "rgba(239,68,68,0.15)"
-                                : "rgba(251,191,36,0.15)",
+                                  ? "rgba(239,68,68,0.15)"
+                                  : "rgba(251,191,36,0.15)",
                             color:
                               venta.invoiceStatus === "ISSUED"
                                 ? "var(--green)"
                                 : venta.invoiceStatus === "FAILED"
-                                ? "var(--red)"
-                                : "var(--amber)",
+                                  ? "var(--red)"
+                                  : "var(--amber)",
                           }}
                         >
                           {INVOICE_LABEL[venta.invoiceStatus] ?? venta.invoiceStatus}
@@ -590,6 +591,9 @@ export default function TabVentas({
 
       {/* Facturas AFIP */}
       <FacturasAfipKpis facturas={data.facturasAfip} />
+
+      {/* Top 10 productos más vendidos - Panel destacado */}
+      <TopProductsPanel periodo={periodo} currentDate={currentDate} />
 
       {/* Ventas por hora */}
       <VentasPorHoraChart ventasPorHora={data.ventasPorHora} />

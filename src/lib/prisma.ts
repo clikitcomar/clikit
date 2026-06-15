@@ -52,9 +52,6 @@ function prismaClientSingleton() {
     connectionString = connectionString.replace("sslmode=require", "sslmode=require&uselibpqcompat=true");
   }
 
-  const host = connectionString.match(/@([^/:]+)/)?.[1] || "unknown";
-  console.log(`[Prisma Init] pg TCP | Runtime: ${isEdge ? "Edge" : "Node"} | Host: ${host}`);
-
   const pool = new Pool({ connectionString });
   const adapter = new PrismaPg(pool as unknown as PrismaPgClient);
 

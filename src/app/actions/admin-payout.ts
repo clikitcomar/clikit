@@ -14,8 +14,6 @@ export async function approvePayoutRequest(payoutId: string) {
     data: { status: "APPROVED" }
   });
 
-  console.log("[PAYOUT_APPROVED]", { payoutId, by: session!.user?.email });
-
   revalidatePath("/admin/partners/payouts");
 }
 
@@ -27,8 +25,6 @@ export async function rejectPayoutRequest(payoutId: string) {
     where: { id: payoutId },
     data: { status: "REJECTED" }
   });
-
-  console.log("[PAYOUT_REJECTED]", { payoutId, by: session!.user?.email });
 
   revalidatePath("/admin/partners/payouts");
 }
@@ -44,8 +40,6 @@ export async function markPayoutAsPaid(payoutId: string) {
       paidAt: new Date()
     }
   });
-
-  console.log("[PAYOUT_PAID]", { payoutId, by: session!.user?.email });
 
   revalidatePath("/admin/partners/payouts");
   revalidatePath("/partner");

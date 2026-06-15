@@ -10,11 +10,23 @@ import { getAfipInstance } from "@/lib/fiscal-server";
 import { buildInvoicePreviewData } from "@/lib/invoice-format";
 import { getSaleItemSubtotal } from "@/lib/sale-item";
 import { getPaymentMethodLabel } from "@/lib/ticket-format";
-import { getDefaultTicketSettings } from "@/lib/ticketing";
+import { getDefaultTicketSettings, type TicketPrintMode } from "@/lib/ticketing";
 import { FiscalVatCondition, InvoiceStatus, Prisma, prisma } from "@/lib/prisma";
+import {
+  emitInvoice,
+  computeIdempotencyKey,
+  type EmitInvoicePayload,
+  type FiscalWorkerEnvironment,
+} from "@/lib/fiscal-worker-client";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
+
+const WORKER_CONFIGURED = Boolean(
+  process.env.ZAP_FISCAL_BASE_URL && process.env.ZAP_FISCAL_API_KEY,
+);
+const WEBHOOK_SECRET = process.env.ZAP_FISCAL_WEBHOOK_SECRET || "";
+const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
 function normalizeFiscalError(error: unknown) {
   const message = error instanceof Error ? error.message : "No se pudo emitir la factura.";
@@ -31,6 +43,54 @@ function isAmbiguousFiscalError(error: unknown) {
     message.includes("socket hang up") ||
     message.includes("network error")
   );
+}
+
+function buildWorkerPayload(
+  saleId: string,
+  saleTotal: number,
+  docType: number,
+  normalizedDoc: string,
+  receiverIvaConditionId: number,
+  pontoDeVenta: number,
+  environment: FiscalWorkerEnvironment,
+  cuit: string,
+): EmitInvoicePayload {
+  const idempotencyKey = computeIdempotencyKey(saleId);
+  const emissionDate = new Date();
+  const year = emissionDate.getFullYear();
+  const month = String(emissionDate.getMonth() + 1).padStart(2, "0");
+  const day = String(emissionDate.getDate()).padStart(2, "0");
+
+  return {
+    externalId: saleId,
+    idempotencyKey,
+    contributor: {
+      cuit,
+      pointOfSale: pontoDeVenta,
+      environment,
+    },
+    voucher: {
+      type: "C",
+      concept: 1,
+      date: `${year}${month}${day}`,
+    },
+    amounts: {
+      total: saleTotal,
+      net: saleTotal,
+      vat: 0,
+    },
+    customer: {
+      docType,
+      docNumber: docType === AFIP_DOCUMENT_TYPES.CONSUMIDOR_FINAL ? "0" : normalizedDoc,
+      vatCondition: receiverIvaConditionId,
+    },
+    webhook: WEBHOOK_SECRET
+      ? {
+          url: `${BASE_URL}/api/fiscal/webhook`,
+          secret: WEBHOOK_SECRET,
+        }
+      : undefined,
+  };
 }
 
 export async function POST(req: Request) {
@@ -153,7 +213,7 @@ export async function POST(req: Request) {
 
   const fiscalProfile = branch.kiosco.fiscalProfile;
   const branchFiscalSettings = branch.fiscalSettings;
-  const branchPrintMode = branch.ticketSettings?.printMode ?? getDefaultTicketSettings().printMode;
+  const branchPrintMode: TicketPrintMode = (branch.ticketSettings?.printMode ?? getDefaultTicketSettings().printMode) as TicketPrintMode;
 
   if (!fiscalProfile || !branchFiscalSettings?.activo || !branchFiscalSettings.puntoDeVenta) {
     return NextResponse.json(
@@ -220,16 +280,218 @@ export async function POST(req: Request) {
         },
       });
 
+  if (WORKER_CONFIGURED) {
+    return handleWorkerEmission(
+      pendingInvoice.id,
+      sale,
+      fiscalProfile,
+      branchFiscalSettings.puntoDeVenta,
+      docType,
+      docValidation.normalized,
+      receiverIvaCondition.id,
+      normalizedReceiverName,
+      branchPrintMode,
+    );
+  }
+
+  return handleLegacyAfipEmission(
+    pendingInvoice.id,
+    sale,
+    fiscalProfile,
+    branchFiscalSettings.puntoDeVenta,
+    docType,
+    docValidation.normalized,
+    receiverIvaCondition.id,
+    normalizedReceiverName,
+    emitterSnapshot,
+    branchPrintMode,
+  );
+}
+
+async function handleWorkerEmission(
+  invoiceId: string,
+  sale: { id: string; total: number; paymentMethod: string; creditCustomer: { name: string } | null; items: Array<{ name: string; quantity: number; price: number; soldByWeight: boolean }> },
+  fiscalProfile: { cuit: string; environment: string },
+  puntoDeVenta: number,
+  docType: number,
+  normalizedDoc: string,
+  receiverIvaConditionId: number,
+  normalizedReceiverName: string,
+  branchPrintMode: TicketPrintMode,
+) {
+  try {
+    const workerPayload = buildWorkerPayload(
+      sale.id,
+      sale.total,
+      docType,
+      normalizedDoc,
+      receiverIvaConditionId,
+      puntoDeVenta,
+      fiscalProfile.environment as FiscalWorkerEnvironment,
+      fiscalProfile.cuit,
+    );
+
+    const result = await emitInvoice(workerPayload, true);
+
+    if (!result.ok) {
+      const errorMsg = (result.data as { error?: { message?: string } })?.error?.message || `Worker error: ${result.status}`;
+      throw new Error(errorMsg);
+    }
+
+    if (result.data.status === "DONE" && result.data.voucher) {
+      const v = result.data.voucher;
+      const caeDueDate = parseAfipDate(v.caeFchVto);
+      const issuedAt = new Date();
+
+      let pdfBlobUrl: string | null = null;
+      let pdfWarning: string | null = null;
+
+      try {
+        const pdf = await createInvoicePdf({
+          emitter: (await prisma.invoice.findUnique({ where: { id: invoiceId }, select: { emitterSnapshot: true } }))?.emitterSnapshot as Parameters<typeof createInvoicePdf>[0]["emitter"],
+          voucherNumber: v.voucherNumber,
+          pointOfSale: puntoDeVenta,
+          printMode: branchPrintMode,
+          issueDate: issuedAt,
+          cae: v.cae,
+          caeDueDate: caeDueDate ?? issuedAt,
+          receiverName: normalizedReceiverName,
+          receiverDocumentType: docType,
+          receiverDocumentNumber: normalizedDoc,
+          receiverIvaConditionLabel: "Consumidor Final",
+          paymentMethod: sale.paymentMethod,
+          total: sale.total,
+          items: sale.items.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            subtotal: getSaleItemSubtotal(item),
+            soldByWeight: item.soldByWeight,
+          })),
+        });
+
+        pdfBlobUrl = pdf.blobUrl;
+        if (!pdf.blobUrl) {
+          pdfWarning = "La factura se emitio, pero el PDF no pudo guardarse en Blob.";
+        }
+      } catch (pdfError) {
+        console.error("[Fiscal Worker] Error generando PDF", pdfError);
+        pdfWarning = "La factura se emitio, pero no se pudo generar el PDF.";
+      }
+
+      const issuedInvoice = await prisma.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          status: InvoiceStatus.ISSUED,
+          cae: v.cae,
+          caeFchVto: caeDueDate,
+          comprobanteTipo: v.voucherType,
+          comprobanteNro: v.voucherNumber,
+          puntoDeVenta,
+          fechaEmision: issuedAt,
+          pdfBlobUrl,
+          lastError: pdfWarning,
+          fiscalJobId: result.data.jobId,
+          fiscalWorkerEnv: fiscalProfile.environment,
+          afipRawResponse: result.data as unknown as Prisma.InputJsonValue,
+        },
+        select: {
+          id: true, saleId: true, status: true, cae: true, caeFchVto: true,
+          comprobanteTipo: true, comprobanteNro: true, puntoDeVenta: true, fechaEmision: true,
+          docTipo: true, docNro: true, receiverName: true, receiverIvaConditionId: true,
+          receiverIvaConditionLabel: true, impTotal: true, impNeto: true, impIva: true,
+          pdfBlobUrl: true, pdfAfipUrl: true, lastError: true, emitterSnapshot: true,
+          sale: {
+            select: {
+              paymentMethod: true,
+              creditCustomer: { select: { name: true } },
+              items: { select: { name: true, quantity: true, price: true, soldByWeight: true } },
+            },
+          },
+        },
+      });
+
+      return NextResponse.json({
+        invoice: buildInvoicePreviewData(
+          issuedInvoice,
+          getPaymentMethodLabel(issuedInvoice.sale.paymentMethod, issuedInvoice.sale.creditCustomer?.name ?? null),
+          branchPrintMode,
+        ),
+      });
+    }
+
+    if (result.data.status === "PROCESSING" || result.data.status === "PENDING") {
+      await prisma.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          fiscalJobId: result.data.jobId,
+          fiscalWorkerEnv: fiscalProfile.environment,
+        },
+      });
+
+      return NextResponse.json({
+        invoice: buildInvoicePreviewData(
+          {
+            id: invoiceId, saleId: sale.id, status: InvoiceStatus.PENDING,
+            cae: null, caeFchVto: null, comprobanteTipo: null, comprobanteNro: null,
+            puntoDeVenta, fechaEmision: null, docTipo: docType, docNro: normalizedDoc,
+            receiverName: normalizedReceiverName, receiverIvaConditionId: null,
+            receiverIvaConditionLabel: null, impTotal: sale.total, impNeto: sale.total,
+            impIva: 0, pdfBlobUrl: null, pdfAfipUrl: null,
+            lastError: "Emision en proceso. Se notificara por webhook.",
+            emitterSnapshot: (await prisma.invoice.findUnique({ where: { id: invoiceId }, select: { emitterSnapshot: true } }))?.emitterSnapshot,
+            sale: { paymentMethod: sale.paymentMethod, creditCustomer: sale.creditCustomer, items: sale.items },
+          },
+          getPaymentMethodLabel(sale.paymentMethod, sale.creditCustomer?.name ?? null),
+          branchPrintMode,
+        ),
+      }, { status: 202 });
+    }
+
+    throw new Error(result.data.lastError || "Estado desconocido del worker");
+  } catch (error) {
+    const message = normalizeFiscalError(error);
+    const ambiguous = isAmbiguousFiscalError(error);
+
+    await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        status: ambiguous ? InvoiceStatus.PENDING : InvoiceStatus.FAILED,
+        lastError: ambiguous
+          ? "No pudimos confirmar la respuesta del worker. La emision quedo pendiente."
+          : message,
+      },
+    });
+
+    return NextResponse.json(
+      { error: ambiguous ? "Emision en proceso. Se notificara por webhook." : message, ambiguous },
+      { status: ambiguous ? 202 : 400 },
+    );
+  }
+}
+
+async function handleLegacyAfipEmission(
+  invoiceId: string,
+  sale: { id: string; total: number; paymentMethod: string; creditCustomer: { name: string } | null; items: Array<{ name: string; quantity: number; price: number; soldByWeight: boolean }> },
+  fiscalProfile: Parameters<typeof getAfipInstance>[0],
+  puntoDeVenta: number,
+  docType: number,
+  normalizedDoc: string,
+  receiverIvaConditionId: number,
+  normalizedReceiverName: string,
+  emitterSnapshot: ReturnType<typeof buildEmitterSnapshot>,
+  branchPrintMode: TicketPrintMode,
+) {
   try {
     const afip = getAfipInstance(fiscalProfile);
     const emissionDate = new Date();
     const afipResponse = await afip.ElectronicBilling.createNextVoucher({
       CantReg: 1,
-      PtoVta: branchFiscalSettings.puntoDeVenta,
+      PtoVta: puntoDeVenta,
       CbteTipo: AFIP_INVOICE_TYPES.FACTURA_C,
       Concepto: 1,
       DocTipo: docType,
-      DocNro: docType === AFIP_DOCUMENT_TYPES.CONSUMIDOR_FINAL ? 0 : Number(docValidation.normalized),
+      DocNro: docType === AFIP_DOCUMENT_TYPES.CONSUMIDOR_FINAL ? 0 : Number(normalizedDoc),
       CbteFch: getAfipDateNumber(emissionDate),
       ImpTotal: sale.total,
       ImpTotConc: 0,
@@ -239,7 +501,7 @@ export async function POST(req: Request) {
       ImpTrib: 0,
       MonId: "PES",
       MonCotiz: 1,
-      CondicionIVAReceptorId: receiverIvaCondition.id,
+      CondicionIVAReceptorId: receiverIvaConditionId,
     });
 
     const voucherNumber = Number(afipResponse?.voucherNumber);
@@ -260,15 +522,15 @@ export async function POST(req: Request) {
       const pdf = await createInvoicePdf({
         emitter: emitterSnapshot,
         voucherNumber,
-        pointOfSale: branchFiscalSettings.puntoDeVenta,
+        pointOfSale: puntoDeVenta,
         printMode: branchPrintMode,
         issueDate: issuedAt,
         cae: String(afipResponse?.CAE || ""),
         caeDueDate: caeDueDate ?? issuedAt,
         receiverName: normalizedReceiverName,
         receiverDocumentType: docType,
-        receiverDocumentNumber: docValidation.normalized,
-        receiverIvaConditionLabel: receiverIvaCondition.label,
+        receiverDocumentNumber: normalizedDoc,
+        receiverIvaConditionLabel: "Consumidor Final",
         paymentMethod: sale.paymentMethod,
         total: sale.total,
         items: sale.items.map((item) => ({
@@ -291,14 +553,14 @@ export async function POST(req: Request) {
     }
 
     const issuedInvoice = await prisma.invoice.update({
-      where: { id: pendingInvoice.id },
+      where: { id: invoiceId },
       data: {
         status: InvoiceStatus.ISSUED,
         cae: typeof afipResponse?.CAE === "string" ? afipResponse.CAE : String(afipResponse?.CAE ?? ""),
         caeFchVto: caeDueDate,
         comprobanteTipo: AFIP_INVOICE_TYPES.FACTURA_C,
         comprobanteNro: voucherNumber,
-        puntoDeVenta: branchFiscalSettings.puntoDeVenta,
+        puntoDeVenta,
         fechaEmision: issuedAt,
         pdfBlobUrl,
         pdfAfipUrl,
@@ -306,39 +568,16 @@ export async function POST(req: Request) {
         afipRawResponse: afipResponse as Prisma.InputJsonValue,
       },
       select: {
-        id: true,
-        saleId: true,
-        status: true,
-        cae: true,
-        caeFchVto: true,
-        comprobanteTipo: true,
-        comprobanteNro: true,
-        puntoDeVenta: true,
-        fechaEmision: true,
-        docTipo: true,
-        docNro: true,
-        receiverName: true,
-        receiverIvaConditionId: true,
-        receiverIvaConditionLabel: true,
-        impTotal: true,
-        impNeto: true,
-        impIva: true,
-        pdfBlobUrl: true,
-        pdfAfipUrl: true,
-        lastError: true,
-        emitterSnapshot: true,
+        id: true, saleId: true, status: true, cae: true, caeFchVto: true,
+        comprobanteTipo: true, comprobanteNro: true, puntoDeVenta: true, fechaEmision: true,
+        docTipo: true, docNro: true, receiverName: true, receiverIvaConditionId: true,
+        receiverIvaConditionLabel: true, impTotal: true, impNeto: true, impIva: true,
+        pdfBlobUrl: true, pdfAfipUrl: true, lastError: true, emitterSnapshot: true,
         sale: {
           select: {
             paymentMethod: true,
             creditCustomer: { select: { name: true } },
-            items: {
-              select: {
-                name: true,
-                quantity: true,
-                price: true,
-                soldByWeight: true,
-              },
-            },
+            items: { select: { name: true, quantity: true, price: true, soldByWeight: true } },
           },
         },
       },
@@ -355,65 +594,18 @@ export async function POST(req: Request) {
     const message = normalizeFiscalError(error);
     const ambiguous = isAmbiguousFiscalError(error);
 
-    const failedInvoice = await prisma.invoice.update({
-      where: { id: pendingInvoice.id },
+    await prisma.invoice.update({
+      where: { id: invoiceId },
       data: {
         status: ambiguous ? InvoiceStatus.PENDING : InvoiceStatus.FAILED,
         lastError: ambiguous
           ? "No pudimos confirmar la respuesta de AFIP. Revisa esta emision desde el historial."
           : message,
       },
-      select: {
-        id: true,
-        saleId: true,
-        status: true,
-        cae: true,
-        caeFchVto: true,
-        comprobanteTipo: true,
-        comprobanteNro: true,
-        puntoDeVenta: true,
-        fechaEmision: true,
-        docTipo: true,
-        docNro: true,
-        receiverName: true,
-        receiverIvaConditionId: true,
-        receiverIvaConditionLabel: true,
-        impTotal: true,
-        impNeto: true,
-        impIva: true,
-        pdfBlobUrl: true,
-        pdfAfipUrl: true,
-        lastError: true,
-        emitterSnapshot: true,
-        sale: {
-          select: {
-            paymentMethod: true,
-            creditCustomer: { select: { name: true } },
-            items: {
-              select: {
-                name: true,
-                quantity: true,
-                price: true,
-                soldByWeight: true,
-              },
-            },
-          },
-        },
-      },
     });
 
     return NextResponse.json(
-      {
-        error: ambiguous
-          ? "AFIP no respondio a tiempo. La venta quedo registrada y la emision paso a pendiente."
-          : message,
-        ambiguous,
-        invoice: buildInvoicePreviewData(
-          failedInvoice,
-          getPaymentMethodLabel(failedInvoice.sale.paymentMethod, failedInvoice.sale.creditCustomer?.name ?? null),
-          branchPrintMode,
-        ),
-      },
+      { error: ambiguous ? "AFIP no respondio a tiempo. La emision paso a pendiente." : message, ambiguous },
       { status: ambiguous ? 202 : 400 },
     );
   }
