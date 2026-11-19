@@ -2853,39 +2853,15 @@ export default function ConfiguracionPage() {
             </a>
             <label
               className="btn btn-ghost"
-              style={{ border: "1px solid var(--border)", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+              aria-disabled="true"
+              style={{ border: "1px solid var(--border)", fontSize: "13px", fontWeight: 600, cursor: "not-allowed", opacity: 0.55 }}
             >
-              Restaurar Backup
-              <input
-                type="file"
-                accept=".json"
-                style={{ display: "none" }}
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const text = await file.text();
-                  try {
-                    const data = JSON.parse(text);
-                    if (!confirm("¿Restaurar este backup? Se agregarán los datos al kiosco actual.")) return;
-                    const res = await fetch("/api/admin/restore", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ ...data, mode: "merge" }),
-                    });
-                    const result = await res.json().catch(() => null);
-                    if (!res.ok) {
-                      alert(result?.error || "No se pudo restaurar el backup.");
-                    } else {
-                      alert(`Backup restaurado: ${result.restored?.branches ?? 0} sucursales, ${result.restored?.products ?? 0} productos, ${result.restored?.employees ?? 0} empleados.`);
-                      window.location.reload();
-                    }
-                  } catch {
-                    alert("El archivo no es un backup válido.");
-                  }
-                  e.target.value = "";
-                }}
-              />
+              Restaurar Backup (deshabilitado)
+              <input type="file" accept=".json" style={{ display: "none" }} disabled />
             </label>
+            <p style={{ width: "100%", color: "var(--text-3)", fontSize: "12px", margin: 0 }}>
+              La restauración está pausada: el backup actual no incluye ventas, turnos ni comprobantes, y restaurarlo podría borrar historial. La descarga del backup sigue disponible.
+            </p>
           </div>
         </div>
       </section>
