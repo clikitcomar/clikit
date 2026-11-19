@@ -139,6 +139,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: message }, { status: pinVerification.reason === "locked" ? 429 : 401 });
     }
 
+    await clearEmployeePinIpRateLimit(req, "pin-verification");
     finalEmployeeId = employee.id;
     finalEmployeeName = employee.name;
   }
