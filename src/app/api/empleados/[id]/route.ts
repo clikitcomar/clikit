@@ -86,6 +86,8 @@ export async function PATCH(
 
   if (hashedPin !== undefined) {
     employeeData.pin = hashedPin;
+    employeeData.pinFailedAttempts = 0;
+    employeeData.pinLockedUntil = null;
   }
 
   if (active !== undefined) {

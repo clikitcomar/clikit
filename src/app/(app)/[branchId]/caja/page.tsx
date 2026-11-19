@@ -740,14 +740,14 @@ export default function CajaPage() {
     }, Math.min(delay, REMINDER_LOCAL_MAX_DELAY_MS));
   }, [clearReminderTimer]);
 
-  const handleOpenShift = async ({ openingAmount, assignee }: { openingAmount: number; assignee: ShiftAssignee }) => {
+  const handleOpenShift = async ({ openingAmount, assignee, pin }: { openingAmount: number; assignee: ShiftAssignee; pin?: string }) => {
     const res = await fetch("/api/turnos", {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
         "x-branch-id": branchId
       },
-      body: JSON.stringify({ openingAmount, employeeId: assignee.employeeId }),
+      body: JSON.stringify({ openingAmount, employeeId: assignee.employeeId, pin }),
     });
     if (res.ok) {
       const shift = await res.json();
@@ -815,7 +815,7 @@ export default function CajaPage() {
     }
   };
 
-  const handleTransferShift = async (assignee: ShiftAssignee) => {
+  const handleTransferShift = async (assignee: ShiftAssignee, pin?: string) => {
     if (!activeShift) return;
     if (!canManageCurrentShift) {
       explainShiftLock();
@@ -848,7 +848,7 @@ export default function CajaPage() {
         "Content-Type": "application/json",
         "x-branch-id": branchId,
       },
-      body: JSON.stringify({ employeeId: assignee.employeeId }),
+      body: JSON.stringify({ employeeId: assignee.employeeId, pin }),
     });
 
     if (res.ok) {

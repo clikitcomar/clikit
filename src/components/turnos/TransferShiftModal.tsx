@@ -21,7 +21,7 @@ type EmployeeApiResponse = {
 
 interface TransferShiftModalProps {
   currentResponsibleName: string;
-  onConfirm: (assignee: ShiftAssignee) => void | Promise<void>;
+  onConfirm: (assignee: ShiftAssignee, pin?: string) => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -62,11 +62,7 @@ export default function TransferShiftModal({
       .then((data) => {
         const active = normalizeEmployees(data);
         setEmployees(active);
-        if (active.length > 0) {
-          setSelectedEmployee(active[0].id);
-        } else {
-          setSelectedEmployee("owner");
-        }
+        setSelectedEmployee(active.find((employee) => employee.hasPin)?.id ?? "owner");
       })
       .catch(() => setSelectedEmployee("owner"));
   }, [branchId]);
@@ -76,14 +72,18 @@ export default function TransferShiftModal({
     ? { employeeId: selectedEmp.id, employeeName: selectedEmp.name }
     : { employeeId: null, employeeName: "Dueño" };
 
-  const proceed = async () => {
+  const proceed = async (pin?: string) => {
     setLoading(true);
-    await onConfirm(assignee);
+    await onConfirm(assignee, pin);
     setLoading(false);
   };
 
   const handleConfirmClick = () => {
-    if (selectedEmp?.hasPin) {
+    if (selectedEmp) {
+      if (!selectedEmp.hasPin) {
+        alert("Este empleado debe tener un PIN configurado antes de recibir el turno.");
+        return;
+      }
       setPinError(null);
       setShowPinModal(true);
       return;
@@ -111,9 +111,9 @@ export default function TransferShiftModal({
 
     if (data.ok) {
       setShowPinModal(false);
-      void proceed();
+      void proceed(pin);
     } else {
-      setPinError("PIN incorrecto. Intenta de nuevo.");
+      setPinError(data.error || "PIN incorrecto. Intenta de nuevo.");
     }
   };
 
@@ -141,14 +141,21 @@ export default function TransferShiftModal({
                 key={employee.id}
                 className={`btn btn-sm ${selectedEmployee === employee.id ? "btn-green" : "btn-ghost"}`}
                 onClick={() => setSelectedEmployee(employee.id)}
+                disabled={!employee.hasPin}
+                style={{ opacity: employee.hasPin ? 1 : 0.5, cursor: employee.hasPin ? "pointer" : "not-allowed" }}
               >
                 {employee.name}
-                {employee.hasPin && (
-                  <span style={{ marginLeft: "4px", fontSize: "11px", opacity: 0.7 }}>PIN</span>
-                )}
+                <span style={{ marginLeft: "4px", fontSize: "11px", opacity: 0.7 }}>
+                  {employee.hasPin ? "PIN" : "Configurar PIN"}
+                </span>
               </button>
             ))}
           </div>
+          {employees.some((employee) => !employee.hasPin) && (
+            <p style={{ color: "var(--text-3)", fontSize: "11px", marginTop: "8px" }}>
+              Los empleados sin PIN no pueden recibir un turno. Asignales uno desde Configuración → Empleados.
+            </p>
+          )}
 
           <div
             style={{

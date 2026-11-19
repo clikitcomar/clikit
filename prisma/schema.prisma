@@ -440,8 +440,10 @@ model VariantInventory {
 model Employee {
   id             String         @id @default(cuid())
   name           String
-  pin            String?
-  active         Boolean        @default(true)
+  pin               String?
+  pinFailedAttempts Int            @default(0)
+  pinLockedUntil    DateTime?
+  active            Boolean        @default(true)
   suspendedUntil DateTime?
   kioscoId       String
   role           EmployeeRole   @default(CASHIER)

@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { getBranchContext } from "@/lib/branch";
 import { prisma } from "@/lib/prisma";
 import { getActiveShift } from "@/lib/shift-access";
+import { verifyAndTrackEmployeePin } from "@/lib/employee-pin-lockout";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No branch" }, { status: 404 });
   }
 
-  const { openingAmount, employeeId } = await req.json();
+  const { openingAmount, employeeId, pin } = await req.json();
   const openingAmountNumber = Number(openingAmount);
 
   if (!Number.isFinite(openingAmountNumber) || openingAmountNumber < 0) {
@@ -47,36 +48,91 @@ export async function POST(req: Request) {
 
   const sessionEmployeeId = session.user.employeeId;
   const sessionRole = session.user.role;
-  let finalEmployeeId: string | null = sessionEmployeeId ?? null;
-  let finalEmployeeName = session.user.name || "Dueño";
+  let finalEmployeeId: string | null = null;
+  let finalEmployeeName = "Dueño";
 
-  if (sessionRole !== UserRole.EMPLOYEE) {
-    if (typeof employeeId === "string" && employeeId) {
-      const employeeWhere: Prisma.EmployeeWhereInput = {
-        id: employeeId,
+  if (sessionRole === UserRole.EMPLOYEE) {
+    if (!sessionEmployeeId) {
+      return NextResponse.json({ error: "La sesión de empleado no es válida." }, { status: 403 });
+    }
+
+    const employee = await prisma.employee.findFirst({
+      where: {
+        id: sessionEmployeeId,
         branches: { some: { id: branchId } },
         active: true,
-      };
+      },
+      select: {
+        id: true,
+        name: true,
+        pin: true,
+        pinLockedUntil: true,
+        suspendedUntil: true,
+      },
+    });
 
-      const employee = await prisma.employee.findFirst({
-        where: employeeWhere,
-        select: {
-          id: true,
-          name: true,
-          suspendedUntil: true,
-        },
-      });
-
-      if (!employee || (employee.suspendedUntil && employee.suspendedUntil > new Date())) {
-        return NextResponse.json({ error: "Empleado no disponible para abrir el turno." }, { status: 400 });
-      }
-
-      finalEmployeeId = employee.id;
-      finalEmployeeName = employee.name;
-    } else {
-      finalEmployeeId = null;
-      finalEmployeeName = "Dueño";
+    if (!employee || (employee.suspendedUntil && employee.suspendedUntil > new Date())) {
+      return NextResponse.json({ error: "Empleado no disponible para abrir el turno." }, { status: 403 });
     }
+
+    const pinVerification = await verifyAndTrackEmployeePin(
+      employee.id,
+      employee.pin,
+      typeof pin === "string" ? pin : "",
+      employee.pinLockedUntil,
+    );
+    if (!pinVerification.ok) {
+      const message =
+        pinVerification.reason === "locked"
+          ? "Demasiados intentos. El acceso quedó bloqueado durante 15 minutos."
+          : pinVerification.reason === "missing"
+            ? "El empleado debe tener un PIN configurado."
+            : "PIN incorrecto.";
+      return NextResponse.json({ error: message }, { status: pinVerification.reason === "locked" ? 429 : 401 });
+    }
+
+    finalEmployeeId = employee.id;
+    finalEmployeeName = employee.name;
+  } else if (typeof employeeId === "string" && employeeId) {
+    const employeeWhere: Prisma.EmployeeWhereInput = {
+      id: employeeId,
+      branches: { some: { id: branchId } },
+      active: true,
+    };
+
+    const employee = await prisma.employee.findFirst({
+      where: employeeWhere,
+      select: {
+        id: true,
+        name: true,
+        pin: true,
+        pinLockedUntil: true,
+        suspendedUntil: true,
+      },
+    });
+
+    if (!employee || (employee.suspendedUntil && employee.suspendedUntil > new Date())) {
+      return NextResponse.json({ error: "Empleado no disponible para abrir el turno." }, { status: 400 });
+    }
+
+    const pinVerification = await verifyAndTrackEmployeePin(
+      employee.id,
+      employee.pin,
+      typeof pin === "string" ? pin : "",
+      employee.pinLockedUntil,
+    );
+    if (!pinVerification.ok) {
+      const message =
+        pinVerification.reason === "locked"
+          ? "Demasiados intentos. El acceso quedó bloqueado durante 15 minutos."
+          : pinVerification.reason === "missing"
+            ? "El empleado debe tener un PIN configurado."
+            : "PIN incorrecto.";
+      return NextResponse.json({ error: message }, { status: pinVerification.reason === "locked" ? 429 : 401 });
+    }
+
+    finalEmployeeId = employee.id;
+    finalEmployeeName = employee.name;
   }
 
   try {

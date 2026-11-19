@@ -10,7 +10,7 @@ import {
   getKioscoAccessContextByAccessKey,
   getKioscoAccessContextForSession,
 } from "@/lib/access-control";
-import { InvalidEmployeePinError, verifyEmployeePinValue } from "@/lib/employee-pin";
+import { verifyAndTrackEmployeePin } from "@/lib/employee-pin-lockout";
 import { UserRole, EmployeeRole } from "@prisma/client";
 import { isPlatformAdmin } from "@/lib/platform-admin";
 
@@ -240,6 +240,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             id: true,
             name: true,
             pin: true,
+            pinLockedUntil: true,
             active: true,
             suspendedUntil: true,
             role: true,
@@ -258,29 +259,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        if (!employee.pin) {
-          return null;
-        }
-
         const pin = typeof credentials.pin === "string" ? credentials.pin : "";
-        let verification;
-        try {
-          verification = await verifyEmployeePinValue(employee.pin, pin);
-        } catch (error) {
-          if (error instanceof InvalidEmployeePinError) {
-            return null;
-          }
-          throw error;
-        }
+        const verification = await verifyAndTrackEmployeePin(
+          employee.id,
+          employee.pin,
+          pin,
+          employee.pinLockedUntil,
+        );
         if (!verification.ok) {
           return null;
-        }
-
-        if (verification.upgradedHash) {
-          await prisma.employee.update({
-            where: { id: employee.id },
-            data: { pin: verification.upgradedHash },
-          });
         }
 
         return {

@@ -10,6 +10,7 @@ import {
   createShiftForbiddenResponse,
   getActiveShift,
 } from "@/lib/shift-access";
+import { verifyAndTrackEmployeePin } from "@/lib/employee-pin-lockout";
 
 export async function POST(
   req: Request,
@@ -26,7 +27,7 @@ export async function POST(
   }
 
   const { id } = await params;
-  const { employeeId } = await req.json();
+  const { employeeId, pin } = await req.json();
 
   const shift = await prisma.shift.findUnique({
     where: { id },
@@ -65,12 +66,30 @@ export async function POST(
       select: {
         id: true,
         name: true,
+        pin: true,
+        pinLockedUntil: true,
         suspendedUntil: true,
       },
     });
 
     if (!employee || (employee.suspendedUntil && employee.suspendedUntil > new Date())) {
       return NextResponse.json({ error: "Empleado no disponible para recibir el turno." }, { status: 400 });
+    }
+
+    const pinVerification = await verifyAndTrackEmployeePin(
+      employee.id,
+      employee.pin,
+      typeof pin === "string" ? pin : "",
+      employee.pinLockedUntil,
+    );
+    if (!pinVerification.ok) {
+      const message =
+        pinVerification.reason === "locked"
+          ? "Demasiados intentos. El acceso quedó bloqueado durante 15 minutos."
+          : pinVerification.reason === "missing"
+            ? "El empleado debe tener un PIN configurado."
+            : "PIN incorrecto.";
+      return NextResponse.json({ error: message }, { status: pinVerification.reason === "locked" ? 429 : 401 });
     }
 
     nextEmployeeId = employee.id;

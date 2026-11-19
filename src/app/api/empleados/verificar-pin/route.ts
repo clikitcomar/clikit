@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { getBranchContext } from "@/lib/branch";
-import { InvalidEmployeePinError, verifyEmployeePinValue } from "@/lib/employee-pin";
+import { verifyAndTrackEmployeePin } from "@/lib/employee-pin-lockout";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
@@ -41,32 +41,38 @@ export async function POST(req: Request) {
           { suspendedUntil: { lte: new Date() } },
         ],
       },
-      select: { id: true, pin: true },
+      select: { id: true, pin: true, pinLockedUntil: true },
     });
 
     if (!employee) {
       return NextResponse.json({ ok: false, error: "Empleado no encontrado" }, { status: 404 });
     }
 
-    if (!employee.pin) {
-      // Employee has no PIN — access granted
-      return NextResponse.json({ ok: true });
+    const verification = await verifyAndTrackEmployeePin(
+      employee.id,
+      employee.pin,
+      pin,
+      employee.pinLockedUntil,
+    );
+
+    if (!verification.ok) {
+      if (verification.reason === "missing") {
+        return NextResponse.json(
+          { ok: false, error: "Este empleado no tiene un PIN configurado." },
+          { status: 403 },
+        );
+      }
+      if (verification.reason === "locked") {
+        return NextResponse.json(
+          { ok: false, error: "Demasiados intentos. El acceso quedó bloqueado durante 15 minutos." },
+          { status: 429 },
+        );
+      }
+      return NextResponse.json({ ok: false, error: "PIN incorrecto." }, { status: 401 });
     }
 
-    const verification = await verifyEmployeePinValue(employee.pin, pin);
-
-    if (verification.ok && verification.upgradedHash) {
-      await prisma.employee.update({
-        where: { id: employee.id },
-        data: { pin: verification.upgradedHash },
-      });
-    }
-
-    return NextResponse.json({ ok: verification.ok });
+    return NextResponse.json({ ok: true });
   } catch (error) {
-    if (error instanceof InvalidEmployeePinError) {
-      return NextResponse.json({ ok: false, error: "PIN invalido" }, { status: 400 });
-    }
     console.error("Error verifying PIN:", error);
     return NextResponse.json({ ok: false, error: "Error interno" }, { status: 500 });
   }
