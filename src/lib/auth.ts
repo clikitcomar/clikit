@@ -55,10 +55,12 @@ declare module "next-auth/jwt" {
     mainBusinessActivity?: string;
     appStartPath?: string;
     appContextVersion?: number;
+    employeeAuthVersion?: number;
   }
 }
 
 const APP_CONTEXT_VERSION = 1;
+const EMPLOYEE_AUTH_VERSION = 1;
 
 type OwnerTokenUser = {
   id: string;
@@ -111,6 +113,7 @@ function applyEmployeeAppContext(
     mainBusinessActivity?: string;
     appStartPath?: string;
     appContextVersion?: number;
+    employeeAuthVersion?: number;
   },
   user: {
     employeeId?: string;
@@ -124,6 +127,7 @@ function applyEmployeeAppContext(
   delete token.mainBusinessActivity;
   token.appStartPath = user.branchId ? `/${user.branchId}/caja` : "/onboarding";
   token.appContextVersion = APP_CONTEXT_VERSION;
+  token.employeeAuthVersion = EMPLOYEE_AUTH_VERSION;
 }
 
 function applyPartnerAppContext(token: {
@@ -325,7 +329,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.id.startsWith("emp_") &&
           typeof token.employeeId === "string" &&
           typeof token.employeeRole === "string" &&
-          typeof token.branchId === "string";
+          typeof token.branchId === "string" &&
+          token.employeeAuthVersion === EMPLOYEE_AUTH_VERSION;
 
         if (!isValidEmployeeToken) {
           delete token.id;
