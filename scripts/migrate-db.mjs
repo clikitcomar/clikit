@@ -97,9 +97,15 @@ try {
   await client.end();
 }
 
-const legacyMigrations = [
+// A fresh database is created from the complete current Prisma schema via
+// db push. These schema-only migrations are therefore already represented
+// in that schema and must be recorded as applied to prevent a later deploy
+// from trying to add the same columns/tables again.
+const baselineMigrations = [
   "001_add_stock_lot_traceability",
   "002_add_sale_consumption_traceability",
+  "003_employee_pin_lockout",
+  "004_employee_pin_ip_rate_limit",
 ];
 
 if (successfulMigrationCount > 0) {
@@ -130,9 +136,9 @@ if (successfulMigrationCount > 0) {
     runPrisma(["db", "push"]);
   }
 
-  // The original Clikit baseline was created with db push. Register its two
-  // existing incremental migrations as applied after the full schema exists.
-  for (const migration of legacyMigrations) {
+  // The original Clikit baseline was created with db push. Register all current
+  // schema-only migrations as applied after the full schema exists.
+  for (const migration of baselineMigrations) {
     runPrisma(["migrate", "resolve", "--applied", migration]);
   }
 
