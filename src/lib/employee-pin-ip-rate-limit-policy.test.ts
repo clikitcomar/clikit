@@ -3,7 +3,7 @@ import { EMPLOYEE_LOGIN_IP_RATE_LIMIT, EMPLOYEE_PIN_IP_RATE_LIMIT, nextEmployeeP
 describe("employee IP rate-limit policy", () => {
   const now = new Date("2026-11-19T12:00:00.000Z");
   it("allows configured attempts then blocks the next", () => {
-    let state = { attempts: 0, windowStartedAt: null as Date | null, blockedUntil: null as Date | null };
+    let state: { attempts: number; windowStartedAt: Date | null; blockedUntil: Date | null; allowed?: boolean } = { attempts: 0, windowStartedAt: null, blockedUntil: null, allowed: true };
     for (let i = 0; i < EMPLOYEE_LOGIN_IP_RATE_LIMIT.maxAttempts; i += 1) {
       state = nextEmployeePinIpRateLimitState(state, EMPLOYEE_LOGIN_IP_RATE_LIMIT, now);
       expect(state.allowed).toBe(true);
