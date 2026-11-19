@@ -1,4 +1,9 @@
-import { Client } from "pg";
+import { Client, types } from "pg";
+
+// Preserve JSON and JSONB payloads as raw JSON text. Parsing them into JavaScript
+// values can corrupt JSON scalar strings when they are inserted into the target.
+types.setTypeParser(114, (value) => value);
+types.setTypeParser(3802, (value) => value);
 
 const sourceUrl = process.env.LEGACY_DATABASE_URL;
 if (!sourceUrl) {
