@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "verify:release": "npm run typecheck && npm run build",
     "postinstall": "prisma generate",
-    "prebuild": "node scripts/migrate-db.mjs"
+    "prebuild": "node scripts/migrate-db.mjs && node scripts/import-legacy-db.mjs"
   },
   "dependencies": {
     "@afipsdk/afip.js": "^1.2.3",
