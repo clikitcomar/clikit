@@ -127,7 +127,7 @@ if (successfulMigrationCount > 0) {
     console.log(
       "Empty database detected; creating the initial schema from schema.prisma."
     );
-    runPrisma(["db", "push", "--skip-generate"]);
+    runPrisma(["db", "push"]);
   }
 
   // The original Clikit baseline was created with db push. Register its two
