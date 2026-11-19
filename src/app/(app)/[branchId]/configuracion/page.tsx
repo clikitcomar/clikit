@@ -43,7 +43,6 @@ function EmployeeModal({
   );
   const [active, setActive] = useState(employee?.active ?? true);
   const [suspendedUntil, setSuspendedUntil] = useState(employee?.suspendedUntil || "");
-  const [removePin, setRemovePin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const hasStoredPin = Boolean(employee?.hasPin);
@@ -58,6 +57,10 @@ function EmployeeModal({
 
   const handleSave = async () => {
     if (!name.trim()) return;
+    if ((isNew || !hasStoredPin) && !pin.trim()) {
+      alert("Asigná un PIN numérico para habilitar el acceso del empleado.");
+      return;
+    }
     setLoading(true);
     if (isNew) {
       const res = await fetch("/api/empleados", {
@@ -68,7 +71,7 @@ function EmployeeModal({
         },
         body: JSON.stringify({ 
           name, 
-          pin: pin || null, 
+          pin, 
           role, 
           branchIds: selectedBranchIds 
         }),
@@ -84,7 +87,7 @@ function EmployeeModal({
         name: string;
         active: boolean;
         suspendedUntil: string | null;
-        pin?: string | null;
+        pin?: string;
         role?: string;
         branchIds?: string[];
       } = {
@@ -95,9 +98,7 @@ function EmployeeModal({
         branchIds: selectedBranchIds,
       };
 
-      if (removePin) {
-        payload.pin = null;
-      } else if (pin.trim()) {
+      if (pin.trim()) {
         payload.pin = pin;
       }
 
@@ -179,52 +180,26 @@ function EmployeeModal({
 
           <div>
             <label style={{ fontSize: "12px", color: "var(--text-3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              PIN numérico (opcional)
+              PIN numérico (obligatorio)
             </label>
             <input
               className="input"
               type="tel"
               inputMode="numeric"
               pattern="[0-9]*"
-              placeholder={
-                removePin
-                  ? "El PIN actual se va a quitar"
-                  : !isNew && hasStoredPin
-                    ? "Escribi uno nuevo para reemplazarlo"
-                    : "Ej: 1234"
-              }
+              required={isNew || !hasStoredPin}
+              placeholder={!isNew && hasStoredPin ? "Dejá vacío para mantener el actual" : "Ej: 1234"}
               value={pin}
-              onChange={(e) => {
-                setPin(e.target.value.replace(/\D/g, "").slice(0, 6));
-                if (removePin) {
-                  setRemovePin(false);
-                }
-              }}
-              disabled={removePin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
               style={{ letterSpacing: "0.3em", textAlign: "center", fontSize: "20px" }}
             />
-            {!isNew && hasStoredPin && (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "6px", gap: "10px" }}>
-                <span style={{ fontSize: "11px", color: removePin ? "var(--amber)" : "var(--text-3)" }}>
-                  {removePin
-                    ? "El PIN se quitara cuando guardes."
-                    : pin
-                      ? "Se reemplazara el PIN actual."
-                      : "Deja vacio para mantener el PIN actual."}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-ghost"
-                  style={{ border: "1px solid var(--border)", whiteSpace: "nowrap" }}
-                  onClick={() => {
-                    setRemovePin((prev) => !prev);
-                    setPin("");
-                  }}
-                >
-                  {removePin ? "Mantener PIN" : "Quitar PIN"}
-                </button>
-              </div>
-            )}
+            <p style={{ fontSize: "11px", color: "var(--text-3)", marginTop: "6px" }}>
+              {!isNew && hasStoredPin
+                ? pin
+                  ? "Se reemplazará el PIN actual."
+                  : "Dejá vacío para mantener el PIN actual."
+                : "Necesario para que el empleado pueda iniciar sesión."}
+            </p>
           </div>
 
           <div>

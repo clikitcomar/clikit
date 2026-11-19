@@ -254,27 +254,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        if (employee.pin) {
-          const pin = typeof credentials.pin === "string" ? credentials.pin : "";
-          let verification;
-          try {
-            verification = await verifyEmployeePinValue(employee.pin, pin);
-          } catch (error) {
-            if (error instanceof InvalidEmployeePinError) {
-              return null;
-            }
-            throw error;
-          }
-          if (!verification.ok) {
+        if (!employee.pin) {
+          return null;
+        }
+
+        const pin = typeof credentials.pin === "string" ? credentials.pin : "";
+        let verification;
+        try {
+          verification = await verifyEmployeePinValue(employee.pin, pin);
+        } catch (error) {
+          if (error instanceof InvalidEmployeePinError) {
             return null;
           }
+          throw error;
+        }
+        if (!verification.ok) {
+          return null;
+        }
 
-          if (verification.upgradedHash) {
-            await prisma.employee.update({
-              where: { id: employee.id },
-              data: { pin: verification.upgradedHash },
-            });
-          }
+        if (verification.upgradedHash) {
+          await prisma.employee.update({
+            where: { id: employee.id },
+            data: { pin: verification.upgradedHash },
+          });
         }
 
         return {

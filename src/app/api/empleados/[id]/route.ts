@@ -4,7 +4,11 @@ import { EmployeeRole, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 import { getBranchContext } from "@/lib/branch";
-import { InvalidEmployeePinError, prepareEmployeePinForStorage } from "@/lib/employee-pin";
+import {
+  InvalidEmployeePinError,
+  MissingEmployeePinError,
+  prepareRequiredEmployeePinForStorage,
+} from "@/lib/employee-pin";
 
 type UpdateEmployeeRequestBody = {
   name?: string;
@@ -57,12 +61,15 @@ export async function PATCH(
     return NextResponse.json({ error: "Fecha de suspension invalida" }, { status: 400 });
   }
 
-  let hashedPin: string | null | undefined;
+  let hashedPin: string | undefined;
   try {
-    hashedPin = await prepareEmployeePinForStorage(pin);
+    hashedPin = pin === undefined ? undefined : await prepareRequiredEmployeePinForStorage(pin);
   } catch (error) {
-    if (error instanceof InvalidEmployeePinError) {
-      return NextResponse.json({ error: "El PIN debe tener entre 1 y 6 digitos numericos." }, { status: 400 });
+    if (error instanceof InvalidEmployeePinError || error instanceof MissingEmployeePinError) {
+      return NextResponse.json(
+        { error: "El PIN es obligatorio y debe tener entre 1 y 6 digitos numericos." },
+        { status: 400 },
+      );
     }
     throw error;
   }

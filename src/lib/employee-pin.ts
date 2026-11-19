@@ -8,6 +8,12 @@ export class InvalidEmployeePinError extends Error {
   }
 }
 
+export class MissingEmployeePinError extends Error {
+  constructor() {
+    super("EMPLOYEE_PIN_REQUIRED");
+  }
+}
+
 export function normalizeEmployeePinInput(pin: string | null | undefined) {
   if (pin === undefined) {
     return undefined;
@@ -38,6 +44,16 @@ export async function prepareEmployeePinForStorage(pin: string | null | undefine
 
   if (normalizedPin === null) {
     return null;
+  }
+
+  return bcrypt.hash(normalizedPin, 10);
+}
+
+export async function prepareRequiredEmployeePinForStorage(pin: string | null | undefined) {
+  const normalizedPin = normalizeEmployeePinInput(pin);
+
+  if (normalizedPin === undefined || normalizedPin === null) {
+    throw new MissingEmployeePinError();
   }
 
   return bcrypt.hash(normalizedPin, 10);

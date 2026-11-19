@@ -211,7 +211,8 @@ export default function UserSwitchModal({
                 return (
                   <button
                     key={emp.id}
-                    onClick={() => !isCurrent && handleSelect(emp)}
+                    onClick={() => !isCurrent && emp.hasPin && handleSelect(emp)}
+                    disabled={isCurrent || !emp.hasPin}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -227,7 +228,7 @@ export default function UserSwitchModal({
                       cursor: isCurrent ? "default" : "pointer",
                       color: "var(--text)",
                       textAlign: "left",
-                      opacity: isCurrent ? 0.7 : 1,
+                      opacity: isCurrent || !emp.hasPin ? 0.55 : 1,
                       transition: "border-color 0.15s, background 0.15s",
                     }}
                   >
@@ -250,7 +251,7 @@ export default function UserSwitchModal({
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: "14px" }}>{emp.name}</div>
                       <div style={{ fontSize: "12px", color: "var(--text-3)" }}>
-                        {isCurrent ? "Sesión activa" : emp.hasPin ? "Requiere PIN" : "Sin PIN"}
+                        {isCurrent ? "Sesión activa" : emp.hasPin ? "Requiere PIN" : "Debe configurar PIN"}
                       </div>
                     </div>
                     {!isCurrent && (

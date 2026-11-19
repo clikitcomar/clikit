@@ -251,13 +251,12 @@ export default function LoginExperience({
     setError("");
     setPin("");
 
-    if (employee.hasPin) {
-      setEmployeeStep("pin");
+    if (!employee.hasPin) {
+      setError("Este empleado todavía no tiene un PIN. Pedile al responsable que lo asigne desde Configuración > Empleados.");
       return;
     }
 
-    setLoading(true);
-    await completeEmployeeLogin(employee, "");
+    setEmployeeStep("pin");
   };
 
   const handleEmployeeSubmit = async (event: FormEvent) => {
@@ -428,7 +427,7 @@ export default function LoginExperience({
             </div>
             <div style={{ color: "#6b7e96", fontSize: "13px", lineHeight: 1.6 }}>
               {mode === "employee"
-                ? "ódigo de sucursal, persona y PIN si hace falta. Rapido y ordenado."
+                ? "Código de sucursal, persona y PIN obligatorio. Rápido y ordenado."
                 : "Email, contraseña y adentro. Claro, directo y sin frialdad."}
             </div>
           </div>
@@ -609,7 +608,7 @@ export default function LoginExperience({
                         key={employee.id}
                         className="btn btn-ghost"
                         onClick={() => void handleEmployeeSelect(employee)}
-                        disabled={loading}
+                        disabled={loading || !employee.hasPin}
                         style={{
                           minHeight: "96px",
                           padding: "14px 12px",
@@ -617,6 +616,7 @@ export default function LoginExperience({
                           gap: "8px",
                           background: "rgba(15,23,42,.62)",
                           border: "1px solid rgba(255,255,255,0.07)",
+                          opacity: employee.hasPin ? 1 : 0.55,
                         }}
                       >
                         <div
@@ -636,7 +636,7 @@ export default function LoginExperience({
                         </div>
                         <span style={{ fontSize: "13px", fontWeight: 700 }}>{employee.name}</span>
                         <span style={{ fontSize: "11px", color: "var(--text-3)" }}>
-                          {employee.hasPin ? "Requiere PIN" : "Ingreso directo"}
+                          {employee.hasPin ? "Requiere PIN" : "Debe configurar PIN"}
                         </span>
                       </button>
                     ))}

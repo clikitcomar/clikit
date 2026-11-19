@@ -3,7 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { EmployeeRole, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { getBranchContext } from "@/lib/branch";
-import { InvalidEmployeePinError, isEmployeePinHash, prepareEmployeePinForStorage } from "@/lib/employee-pin";
+import {
+  InvalidEmployeePinError,
+  MissingEmployeePinError,
+  isEmployeePinHash,
+  prepareEmployeePinForStorage,
+  prepareRequiredEmployeePinForStorage,
+} from "@/lib/employee-pin";
 
 type CreateEmployeeRequestBody = {
   name?: string;
@@ -112,7 +118,7 @@ export async function POST(req: Request) {
 
     const employeeData: Prisma.EmployeeCreateInput = {
       name: name.trim(),
-      pin: await prepareEmployeePinForStorage(pin),
+      pin: await prepareRequiredEmployeePinForStorage(pin),
       role: role ?? EmployeeRole.CASHIER,
       kiosco: {
         connect: { id: kioscoId },
@@ -139,8 +145,11 @@ export async function POST(req: Request) {
       hasPin: Boolean(employee.pin),
     });
   } catch (error) {
-    if (error instanceof InvalidEmployeePinError) {
-      return NextResponse.json({ error: "El PIN debe tener entre 1 y 6 digitos numericos." }, { status: 400 });
+    if (error instanceof InvalidEmployeePinError || error instanceof MissingEmployeePinError) {
+      return NextResponse.json(
+        { error: "El PIN es obligatorio y debe tener entre 1 y 6 digitos numericos." },
+        { status: 400 },
+      );
     }
 
     console.error("Error creating employee:", error);
