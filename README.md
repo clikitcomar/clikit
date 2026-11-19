@@ -31,7 +31,7 @@ Abrir [http://localhost:3000](http://localhost:3000)
 | `npm run build` | Build de producción |
 | `npm run start` | Iniciar en producción |
 | `npm run lint` | ESLint |
-| `npm run test` | Ejecutar tests (Vitest) |
+| `npm run test` | Ejecutar todos los tests (Vitest) |
 | `npm run test:watch` | Tests en modo watch |
 | `npm run typecheck` | Typegen + verificación de tipos |
 | `npm run verify:release` | Typecheck + build completo |
@@ -68,29 +68,20 @@ src/
 │   │   └── tickets/        # Historial de tickets
 │   ├── admin/              # Panel de administración (platform admin)
 │   ├── partner/            # Portal de partners/vendedores
-│   ├── api/                # 95+ API routes
+│   ├── api/                # API routes
 │   ├── login/              # Autenticación
 │   ├── register/           # Registro
 │   └── onboarding/         # Onboarding de nuevos kioscos
-├── components/             # Componentes React por dominio (80+)
-│   ├── caja/               # Componentes de caja
-│   ├── ui/                 # Componentes UI base (13)
-│   ├── admin/              # Panel admin
-│   ├── partner/            # Portal de partners
-│   ├── fiscal/             # Facturación AFIP
-│   ├── turnos/             # Gestión de turnos
-│   ├── products/           # Gestión de productos
-│   ├── stats/              # Estadísticas
-│   └── ...                 # Otros dominios
-├── lib/                    # Lógica de negocio (70+ archivos)
+├── components/             # Componentes React por dominio
+├── lib/                    # Lógica de negocio
 │   ├── auth.ts             # NextAuth v5 configuration
 │   ├── prisma.ts           # Prisma client singleton
-│   ├── promo-engine.ts     # Motor de promociones (419 líneas)
+│   ├── promo-engine.ts     # Motor de promociones
 │   ├── fiscal.ts           # Utilidades fiscales
 │   ├── fiscal-worker-client.ts # Cliente del Fiscal Worker
 │   ├── offline/            # Soporte offline (IndexedDB)
-│   └── ...                 # Utilidades por dominio
-├── __tests__/              # Tests de integración
+│   └── ...                 # Otros dominios
+├── __tests__/              # Tests
 └── types/                  # Definiciones de tipos
 ```
 
@@ -98,21 +89,14 @@ src/
 
 ```bash
 npm run test          # Ejecutar todos los tests
-npm run test:watch    # Modo watch (re-ejecuta al guardar)
+npm run test:watch    # Modo watch
 ```
 
-**79 tests** cubriendo:
-- Utilidades de venta (subtotals, weight parsing)
-- Validación fiscal (CUIT, DNI, documentos)
-- Motor de promociones (combos, cupones)
-- Límites de crédito
-- Formateo de tickets
-- Constantes de pricing
-- Utilidades generales
+Los tests actuales cubren utilidades de venta y pesables, validación fiscal, promociones, límites de crédito, seguridad de PIN, firma de webhook de Mercado Pago y utilidades generales. La cobertura unitaria no reemplaza todavía los tests E2E y de integración contra PostgreSQL necesarios para validar una jornada comercial completa.
 
 ## Base de Datos
 
-Usa Prisma ORM con PostgreSQL (Neon serverless). Ver `prisma/MIGRATIONS.md` para la estrategia de migraciones.
+Usa Prisma ORM con PostgreSQL (Neon). Ver `prisma/MIGRATIONS.md` para la estrategia de migraciones.
 
 ```bash
 # Generar cliente
@@ -128,12 +112,12 @@ npx prisma migrate deploy
 ## Deploy
 
 Desplegado en **Vercel** con:
-- Cron job diario para procesamiento de pagos a partners
-- Sentry para monitoreo de errores
-- Fiscal Worker en Cloudflare para facturación
+- Cron job para procesamiento de pagos a partners (la automatización de transferencias permanece deshabilitada hasta integrar un proveedor real).
+- Integración preparada con Sentry (requiere configuración de DSN).
+- Fiscal Worker en Cloudflare para facturación (requiere configuración de credenciales y completar pruebas de integración).
 
 ```bash
-npm run verify:release  # Verificar antes de deploy
+npm run verify:release  # Verificar typecheck + build antes de deploy
 ```
 
 ## Funcionalidades Principales
@@ -142,19 +126,21 @@ npm run verify:release  # Verificar antes de deploy
 - **Multi-sucursal**: Turnos, empleados, configuración independiente por branch
 - **Inventario avanzado**: Lotes, vencimientos (FEFO), capas de costos, valuación
 - **Promociones**: Combos, Happy Hour, Zona Roja, cupones con QR
-- **Facturación**: Emisión de Factura C via Fiscal Worker, historial, PDF, NC
+- **Facturación**: Emisión de Factura C, historial, PDF, integración con Fiscal Worker en proceso de validación comercial
 - **Fiados**: Cuentas corrientes con límites de crédito
 - **Estadísticas**: Resumen diario, ventas, turnos, empleados, stock, fiados
-- **Partners**: Portal de vendedores con comisiones y pagos
+- **Partners**: Portal de referidos y comisiones; pagos automáticos pendientes de integración
 - **PWA**: Instalable, service worker, soporte offline básico
 - **Catálogo colaborativo**: Lookup por código de barras, sincronización global
-- **Backup/Restore**: Exportación e importación completa del kiosco
-- **Keyboard shortcuts**: F1-F11 para operación rápida en caja
+- **Importación/exportación**: Catálogo e inventario por planillas
+- **Backup/Restore**: Exportación operativa parcial; la restauración del kiosco está temporalmente deshabilitada hasta completar el formato y las pruebas de recuperación
+- **Atajos de teclado**: F1-F11 para operación rápida en caja
 
 ## Documentación Interna
 
+- `PREPARACION-COMERCIAL.md` — Auditoría de preparación comercial y criterios de aceptación de NODO ZAP Fiscal
 - `NEGOCIO-REAL.md` — Checklist para negocio real
 - `PRODUCCION.md` — Checklist de producción y smoke tests
-- `quehaceclikit.md` — Documentación completa de funcionalidades
-- `brechas_mejoras_clikit.md` — Análisis de brechas y mejoras enterprise
+- `quehaceclikit.md` — Documentación de funcionalidades
+- `brechas_mejoras_clikit.md` — Análisis de brechas y mejoras
 - `prisma/MIGRATIONS.md` — Estrategia de migraciones

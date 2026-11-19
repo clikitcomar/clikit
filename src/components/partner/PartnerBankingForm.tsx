@@ -28,8 +28,8 @@ export default function PartnerBankingForm({ current }: { current: BankingInfo }
     try {
       await saveBankingInfo({ bankAlias: alias, bankCbu: cbu, bankAccountHolder: holder });
       setSuccess(true);
-    } catch (err: any) {
-      setError(err?.message ?? "Error al guardar. Intentá de nuevo.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al guardar. Intentá de nuevo.");
     } finally {
       setIsPending(false);
     }

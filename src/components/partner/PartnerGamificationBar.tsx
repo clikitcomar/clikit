@@ -1,23 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { PartnerStatsResult } from "@/lib/partner-stats";
+
+const subscribeToMount = () => () => {};
+const getClientMountedSnapshot = () => true;
+const getServerMountedSnapshot = () => false;
 
 export default function PartnerGamificationBar({ stats }: { stats: PartnerStatsResult }) {
   const [justUpgraded, setJustUpgraded] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    subscribeToMount,
+    getClientMountedSnapshot,
+    getServerMountedSnapshot
+  );
 
   useEffect(() => {
-    setMounted(true);
     const storageKey = `clikit_last_tier_${stats.partnerId}`;
     const lastTier = localStorage.getItem(storageKey);
     const parsedLastTier = lastTier ? parseInt(lastTier, 10) : null;
     
+    let upgradeTimer: ReturnType<typeof setTimeout> | undefined;
+    let clearTimer: ReturnType<typeof setTimeout> | undefined;
+
     if (parsedLastTier !== null && parsedLastTier < stats.tierPct) {
-      setJustUpgraded(true);
-      setTimeout(() => setJustUpgraded(false), 2000);
+      upgradeTimer = setTimeout(() => {
+        setJustUpgraded(true);
+        clearTimer = setTimeout(() => setJustUpgraded(false), 2000);
+      }, 0);
     }
     localStorage.setItem(storageKey, stats.tierPct.toString());
+
+    return () => {
+      if (upgradeTimer) clearTimeout(upgradeTimer);
+      if (clearTimer) clearTimeout(clearTimer);
+    };
   }, [stats.tierPct, stats.partnerId]);
 
   const isMaxTier = stats.tierPct >= 50;

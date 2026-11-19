@@ -43,8 +43,8 @@ export default function PartnerRevenueChart({
                 boxShadow: "0 8px 30px rgba(0,0,0,0.4)",
                 color: "var(--text)"
               }}
-              formatter={(value: any) => {
-                if (typeof value !== 'number') return [value, "MRR"];
+              formatter={(value: unknown) => {
+                if (typeof value !== "number") return [String(value ?? ""), "MRR"];
                 return [`$${value.toLocaleString("es-AR")}`, "MRR"];
               }}
               itemStyle={{ color: "var(--text)", fontWeight: 700 }}

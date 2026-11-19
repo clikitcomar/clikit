@@ -161,11 +161,7 @@ function SearchAutocomplete({
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (!value || value.length < 2) {
-      setResults(null);
-      setShowResults(false);
-      return;
-    }
+    if (!value || value.length < 2) return;
 
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -256,7 +252,7 @@ function SearchAutocomplete({
         </button>
       )}
 
-      {showResults && results && (
+      {value.length >= 2 && showResults && results && (
         <div
           style={{
             position: "absolute",

@@ -9,7 +9,7 @@ export function CheckoutTour() {
   useEffect(() => {
     if (!masterActive || isModuleCompleted("checkout")) return;
 
-    let driverObj: any = null;
+    let driverObj: { destroy: () => void; drive: () => void } | null = null;
     let destroyed = false;
 
     const timer = setTimeout(() => {

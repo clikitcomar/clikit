@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 "use client";
 
 import { SUBSCRIPTION_CANCEL_LABEL, SUBSCRIPTION_PRICE_ARS, formatSubscriptionPrice, getSubscriptionPromoLabel } from "@/lib/subscription-plan";

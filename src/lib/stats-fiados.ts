@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { todayART } from "@/lib/utils";
 
@@ -46,7 +47,7 @@ type FiadosStats = {
 };
 
 export const getFiadosStats = async (branchId: string, search: string, estado: string): Promise<FiadosStats> => {
-    const where: any = { branchId };
+    const where: Prisma.CreditCustomerWhereInput = { branchId };
 
     if (search) {
       where.OR = [

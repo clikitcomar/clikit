@@ -684,9 +684,8 @@ function ProductModal({
   const [stockAdjustment, setStockAdjustment] = useState("");
   const [minStock, setMinStock] = useState(formatStockQuantity(product?.minStock ?? null, initialSoldByWeight));
   const [showInGrid, setShowInGrid] = useState(product?.showInGrid ?? true);
-  // saleMode: "unit" | "weight" | "meter" | "litro" — meter y litro quedarán listos en Fase 2 (schema migration)
   const initialSaleMode = initialSoldByWeight ? "weight" : "unit";
-  const [saleMode, setSaleMode] = useState<"unit" | "weight" | "meter" | "litro">(initialSaleMode);
+  const [saleMode, setSaleMode] = useState<"unit" | "weight">(initialSaleMode);
   const soldByWeight = saleMode === "weight"; // derivado — mantiene compatibilidad con todo el código existente
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -695,7 +694,7 @@ function ProductModal({
   const [showExpiry, setShowExpiry] = useState(false);
   const [expiryPill, setExpiryPill] = useState<string | null>(null); // "1m" | "3m" | "6m" | "1y" | "custom"
   const [expiryDate, setExpiryDate] = useState("");
-  const [detailsOpen, setDetailsOpen] = useState(isNew);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [scannerTarget, setScannerTarget] = useState<ProductModalScannerTarget | null>(null);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [applyingSuggestion, setApplyingSuggestion] = useState(false);
@@ -1286,15 +1285,7 @@ function ProductModal({
                   value={brand}
                   onChange={(e) => setBrand(e.target.value)}
                 />
-                <span style={{ fontSize: "12px", color: "var(--text-3)", flexShrink: 0 }}>·</span>
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  style={{ background: "transparent", border: "none", outline: "none", color: "var(--text-2)", fontSize: "12px", padding: 0, cursor: "pointer" }}
-                >
-                  <option value="">Sin categoría</option>
-                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+
               </div>
 
               {!hasVariants && (
@@ -2648,27 +2639,15 @@ function ProductModal({
           <select
             className="input"
             value={saleMode}
-            onChange={(e) => setSaleMode(e.target.value as "unit" | "weight" | "meter" | "litro")}
+            onChange={(e) => setSaleMode(e.target.value as "unit" | "weight")}
             style={{ width: "100%", background: "var(--surface)", cursor: "pointer" }}
           >
             <option value="unit">Por unidad</option>
             <option value="weight">Por peso (gramos)</option>
-            <option value="meter">Por metro lineal</option>
-            <option value="litro">Por litro</option>
           </select>
           {saleMode === "weight" && (
             <div style={{ marginTop: "5px", fontSize: "11px", color: "var(--text-3)", background: "var(--surface-2)", borderRadius: "6px", padding: "5px 9px" }}>
               El precio y el costo se toman por kg. La venta se registra en gramos.
-            </div>
-          )}
-          {saleMode === "meter" && (
-            <div style={{ marginTop: "5px", fontSize: "11px", color: "var(--text-3)", background: "var(--surface-2)", borderRadius: "6px", padding: "5px 9px" }}>
-              El precio y el costo se toman por metro lineal. <span style={{ color: "var(--amber)" }}>Disponible en caja próximamente.</span>
-            </div>
-          )}
-          {saleMode === "litro" && (
-            <div style={{ marginTop: "5px", fontSize: "11px", color: "var(--text-3)", background: "var(--surface-2)", borderRadius: "6px", padding: "5px 9px" }}>
-              El precio y el costo se toman por litro. <span style={{ color: "var(--amber)" }}>Disponible en caja próximamente.</span>
             </div>
           )}
         </div>
@@ -6239,8 +6218,29 @@ export default function ProductosPage() {
             );
           })}
           {filtered.length === 0 && (
-            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-3)" }}>
-              {search ? "Sin resultados" : "Sin productos. ¡Creá el primero!"}
+            <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-3)" }}>
+              {search ? (
+                <div>Sin resultados para esa búsqueda.</div>
+              ) : (
+                <>
+                  <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>
+                    Todavía no cargaste productos
+                  </div>
+                  <div style={{ fontSize: "13px", marginBottom: "18px" }}>
+                    Podés agregarlos uno por uno o importar tu catálogo desde Excel.
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <button className="btn btn-primary" onClick={() => setModal("new")}>
+                      + Agregar primer producto
+                    </button>
+                    {isOwner && (
+                      <button className="btn btn-ghost" onClick={() => setShowCatalogImportModal(true)}>
+                        Importar desde Excel
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

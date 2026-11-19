@@ -55,11 +55,7 @@ export default function SearchAutocomplete({
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (!value || value.length < 2 || value === "Todos los negocios") {
-      setResults(null);
-      setShowResults(false);
-      return;
-    }
+    if (!value || value.length < 2 || value === "Todos los negocios") return;
 
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -149,7 +145,7 @@ export default function SearchAutocomplete({
         </button>
       )}
 
-      {showResults && results && (
+      {value.length >= 2 && value !== "Todos los negocios" && showResults && results && (
         <div
           style={{
             position: "absolute",

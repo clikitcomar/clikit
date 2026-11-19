@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { formatTrialTime, getTrialMessage } from "@/lib/trial-manager";
 
 interface TrialWelcomeModalProps {
@@ -9,16 +9,20 @@ interface TrialWelcomeModalProps {
   onActivate: () => void;
 }
 
+const subscribeToMount = () => () => {};
+const getClientMountedSnapshot = () => true;
+const getServerMountedSnapshot = () => false;
+
 export default function TrialWelcomeModal({
   remainingHours,
   onExplore,
   onActivate,
 }: TrialWelcomeModalProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(
+    subscribeToMount,
+    getClientMountedSnapshot,
+    getServerMountedSnapshot
+  );
 
   if (!mounted) return null;
 

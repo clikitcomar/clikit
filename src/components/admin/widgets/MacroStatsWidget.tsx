@@ -1,8 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import AdminAreaChart from "./AdminAreaChart";
 
+function getThirtyDaysAgo() {
+  return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+}
+
 export default async function MacroStatsWidget() {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = getThirtyDaysAgo();
 
   const [
     activeSubscriptions,

@@ -27,6 +27,10 @@ function formatDateTimeLocalInput(date: Date) {
   return localDate.toISOString().slice(0, 16);
 }
 
+function getDefaultExpiresAt() {
+  return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+}
+
 function generatePlatformCouponCode() {
   const token = randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
   return `CLK-${token.slice(0, 4)}-${token.slice(4, 8)}`;
@@ -87,7 +91,7 @@ export default async function PlatformCouponsPage() {
     },
   });
 
-  const defaultExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const defaultExpiresAt = getDefaultExpiresAt();
 
   return (
     <div style={{ display: "grid", gap: "20px" }}>

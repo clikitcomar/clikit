@@ -1,4 +1,5 @@
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { artDayRange } from "@/lib/utils";
 
@@ -96,12 +97,12 @@ export const getEmpleadosStats = async (
   ): Promise<EmpleadosStats> => {
     const { start, end } = buildDateRange(periodo, isoDate);
 
-    const whereEmpleados: any = {
+    const whereEmpleados: Prisma.EmployeeWhereInput = {
       branches: { some: { id: branchId } },
     };
 
     if (rol) {
-      whereEmpleados.role = rol;
+      whereEmpleados.role = rol as Prisma.EmployeeWhereInput["role"];
     }
 
     if (empleadoId) {

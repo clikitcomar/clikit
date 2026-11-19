@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 interface ConfigTab {
   id: string;
@@ -24,15 +24,6 @@ function resolveActiveTab(tabs: ConfigTab[], requestedTabId?: string) {
 
 export default function ConfigTabs({ tabs, initialTabId }: ConfigTabsProps) {
   const [activeTab, setActiveTab] = useState(() => resolveActiveTab(tabs, initialTabId));
-
-  useEffect(() => {
-    if (!initialTabId) {
-      return;
-    }
-
-    const nextTab = resolveActiveTab(tabs, initialTabId);
-    setActiveTab((currentTab) => (currentTab === nextTab ? currentTab : nextTab));
-  }, [initialTabId]);
 
   const activeTabData = tabs.find((t) => t.id === activeTab);
 

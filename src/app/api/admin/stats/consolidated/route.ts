@@ -133,7 +133,7 @@ const getConsolidatedMetrics = unstable_cache(
     const productMap: Record<string, { name: string; units: number; revenue: number; cost: number }> = {};
     const revenueByPaymentMethod: Record<string, number> = {};
     let totalRevenue = 0;
-    let totalCost = 0;
+    const totalCost = 0;
     let totalUnits = 0;
 
     for (const sale of sales) {
