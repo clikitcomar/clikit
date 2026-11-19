@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:release": "npm run typecheck && npm run build",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "prebuild": "node scripts/migrate-db.mjs"
   },
   "dependencies": {
     "@afipsdk/afip.js": "^1.2.3",
