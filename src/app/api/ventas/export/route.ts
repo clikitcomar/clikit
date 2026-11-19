@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { guardOperationalAccess } from "@/lib/access-control";
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
   }
 
   // Si no se asignan fechas, se toma todo el historial. Recomendamos usar un from/to por defecto en el cliente.
-  let createdAtFilter: any = {};
+  const createdAtFilter: { gte?: Date; lte?: Date } = {};
   if (from || to) {
     if (from) createdAtFilter.gte = new Date(`${from}T00:00:00.000-03:00`);
     if (to) createdAtFilter.lte = new Date(`${to}T23:59:59.999-03:00`);
@@ -69,7 +70,7 @@ export async function GET(req: Request) {
 
   // Buscamos todas las ventas que apliquen con este rango de fecha
   // Nota: Hacemos una única query masiva y particionamos en JS, para evitar 3 queries separadas sobre potencialmente miles de registros.
-  const salesQueryWhere: any = {
+  const salesQueryWhere: Prisma.SaleWhereInput = {
     branchId,
     ...(Object.keys(createdAtFilter).length > 0 ? { createdAt: createdAtFilter } : {}),
   };

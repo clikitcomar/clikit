@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import ConfigTabs from "@/components/ui/ConfigTabs";
 import { SucursalTab, ProductosTab, EquipoTab, SucursalesTab, AccesoTab } from "./tabs";
 import type { Employee, Category, Branch, PricingMode, FiscalEnvironment, TicketPrintMode, Subscription } from "./types";
+import type { TicketPreviewData } from "@/lib/ticket-format";
 
 interface ConfigTabsContainerProps {
   branchId: string;
@@ -108,7 +109,7 @@ interface ConfigTabsContainerProps {
   handleSaveExpirySettings: () => Promise<void>;
   handleSaveStockRules: () => Promise<void>;
   handleSaveFiscalSettings: () => Promise<void>;
-  openTicketPreview: (data: any) => void;
+  openTicketPreview: (data: TicketPreviewData) => void;
 }
 
 export default function ConfigTabsContainer(props: ConfigTabsContainerProps) {
@@ -140,6 +141,7 @@ export default function ConfigTabsContainer(props: ConfigTabsContainerProps) {
 
   return (
     <ConfigTabs
+      key={initialTabId ?? "default"}
       initialTabId={initialTabId}
       tabs={[
         {

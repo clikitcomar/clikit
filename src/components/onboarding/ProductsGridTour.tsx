@@ -14,7 +14,7 @@ export function ProductsGridTour({ shouldShow }: { shouldShow: boolean }) {
     const isManual = (Date.now() - lastManualTrigger) < 2000;
     if (!shouldShow && !isManual) return;
 
-    let driverObj: any = null;
+    let driverObj: { destroy: () => void; drive: () => void } | null = null;
     let destroyed = false;
 
     const initTour = () => {

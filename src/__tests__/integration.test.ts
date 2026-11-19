@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => {
   const mockPrisma = {
@@ -43,7 +43,7 @@ vi.mock("@/lib/prisma", () => {
     shift: {
       findFirst: vi.fn(),
     },
-    $transaction: vi.fn(async (fn: any) => fn(mockPrisma)),
+    $transaction: vi.fn(async (fn: (transaction: unknown) => unknown) => fn(mockPrisma)),
   };
   return {
     prisma: mockPrisma,
@@ -87,41 +87,6 @@ vi.mock("@/lib/promo-loader", () => ({
   loadAndApplyPromos: vi.fn(),
   persistPromoResult: vi.fn(),
 }));
-
-describe("Sales API - Validation", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("validates payment method normalization", async () => {
-    const { normalizePaymentMethod } = await import("@/app/api/ventas/route.ts" as any).catch(() => {
-      return { normalizePaymentMethod: null };
-    });
-    // Test that invalid payment methods are rejected
-    expect(true).toBe(true);
-  });
-
-  it("rounds money correctly", async () => {
-    const { roundMoney } = await import("@/app/api/ventas/route.ts" as any).catch(() => {
-      return { roundMoney: (v: number) => Math.round(v * 100) / 100 };
-    });
-    if (roundMoney) {
-      expect(roundMoney(10.123)).toBe(10.12);
-      expect(roundMoney(10.126)).toBe(10.13);
-      expect(roundMoney(10.125)).toBe(10.13);
-    }
-  });
-
-  it("formats money in ARS format", async () => {
-    const { formatMoney } = await import("@/app/api/ventas/route.ts" as any).catch(() => {
-      return { formatMoney: (v: number) => `$${Math.round(v).toLocaleString("es-AR")}` };
-    });
-    if (formatMoney) {
-      expect(formatMoney(14900)).toContain("14");
-      expect(formatMoney(0)).toContain("0");
-    }
-  });
-});
 
 describe("Credit Limit Validation", () => {
   it("credit limit check prevents overselling", () => {

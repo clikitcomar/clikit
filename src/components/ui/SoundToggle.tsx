@@ -1,44 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import { isSoundEnabled, toggleSound } from "@/lib/audio";
 import { LEGACY_SOUND_TOGGLE_EVENT, SOUND_TOGGLE_EVENT } from "@/lib/brand";
 
+function subscribeToSound(onStoreChange: () => void) {
+  window.addEventListener(SOUND_TOGGLE_EVENT, onStoreChange);
+  window.addEventListener(LEGACY_SOUND_TOGGLE_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener(SOUND_TOGGLE_EVENT, onStoreChange);
+    window.removeEventListener(LEGACY_SOUND_TOGGLE_EVENT, onStoreChange);
+  };
+}
+
+const getSoundSnapshot = () => isSoundEnabled();
+const getSoundServerSnapshot = () => true;
+
 export default function SoundToggle() {
-  const [enabled, setEnabled] = useState(true);
-
-  useEffect(() => {
-    setEnabled(isSoundEnabled());
-
-    const handleToggle = (event: CustomEvent<boolean>) => {
-      setEnabled(Boolean(event.detail));
-    };
-
-    window.addEventListener(
-      SOUND_TOGGLE_EVENT,
-      handleToggle as EventListener,
-    );
-    window.addEventListener(
-      LEGACY_SOUND_TOGGLE_EVENT,
-      handleToggle as EventListener,
-    );
-
-    return () => {
-      window.removeEventListener(
-        SOUND_TOGGLE_EVENT,
-        handleToggle as EventListener,
-      );
-      window.removeEventListener(
-        LEGACY_SOUND_TOGGLE_EVENT,
-        handleToggle as EventListener,
-      );
-    };
-  }, []);
+  const enabled = useSyncExternalStore(
+    subscribeToSound,
+    getSoundSnapshot,
+    getSoundServerSnapshot
+  );
 
   const handleClick = () => {
-    const nextValue = toggleSound();
-    setEnabled(nextValue);
+    toggleSound();
   };
 
   return (

@@ -58,7 +58,7 @@ function computeMilestones(pace: number): (Milestone & { months: number; clients
   return MILESTONES.map((target) => {
     let cartera = 0;
     let m = 0;
-    // eslint-disable-next-line no-constant-condition
+
     while (true) {
       m++;
       cartera += pace;

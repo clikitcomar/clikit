@@ -9,7 +9,7 @@ export function StockModalTour() {
   useEffect(() => {
     if (!masterActive || isModuleCompleted("stock-modal")) return;
 
-    let driverObj: any = null;
+    let driverObj: { destroy: () => void; drive: () => void } | null = null;
     let destroyed = false;
 
     const timer = setTimeout(() => {

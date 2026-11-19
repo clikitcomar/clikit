@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { getBranchId } from "@/lib/branch";
 import { prisma } from "@/lib/prisma";
@@ -41,13 +42,13 @@ const getVentasStats = unstable_cache(
       end = dayEnd;
     }
 
-    const where: any = {
+    const where: Prisma.SaleWhereInput = {
       branchId,
       createdAt: { gte: start, lte: end },
     };
 
     if (metodo) {
-      where.paymentMethod = metodo;
+      where.paymentMethod = metodo as Prisma.SaleWhereInput["paymentMethod"];
     }
 
     if (empleadoId) {

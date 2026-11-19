@@ -7,7 +7,9 @@ import { requestPayout } from "@/app/actions/partner-payout";
 const MIN_WITHDRAW = 10000;
 
 export default function PartnerWallet({ stats }: { stats: PartnerStatsResult }) {
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(() =>
+    stats.availableBalance > 0 ? Math.floor(stats.availableBalance).toString() : ""
+  );
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -19,17 +21,14 @@ export default function PartnerWallet({ stats }: { stats: PartnerStatsResult }) 
   // Avoids optimistic state being overwritten before server confirms
   useEffect(() => {
     if (isPending) return;
+    // The server action revalidates this component; reconcile optimistic state
+    // only once the request is no longer pending and the authoritative props arrive.
+    /* eslint-disable react-hooks/set-state-in-effect -- deliberate reconciliation of server-confirmed payout props */
     setOptimisticBalance(stats.availableBalance);
     setOptimisticReserved(stats.reservedBalance);
     setOptimisticHistory(stats.payoutHistory);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [stats.availableBalance, stats.reservedBalance, stats.payoutHistory, isPending]);
-
-  // Auto-prefill to max available
-  useEffect(() => {
-    if (!amount && optimisticBalance > 0) {
-      setAmount(Math.floor(optimisticBalance).toString());
-    }
-  }, [optimisticBalance]);
 
   const normalizeAmount = (input: string) => {
     if (!input) return 0;
@@ -37,25 +36,18 @@ export default function PartnerWallet({ stats }: { stats: PartnerStatsResult }) 
     return parseFloat(normalized) || 0;
   };
 
-  // Live Validation
-  useEffect(() => {
-    if (!amount) {
-      setError(null);
-      return;
-    }
-
-    const val = normalizeAmount(amount);
-
-    if (isNaN(val) || val <= 0) {
-      setError("Monto inválido");
-    } else if (val < MIN_WITHDRAW) {
-      setError(`Mínimo $${MIN_WITHDRAW.toLocaleString("es-AR")}`);
-    } else if (val > optimisticBalance) {
-      setError("Supera tu saldo");
-    } else {
-      setError(null);
-    }
-  }, [amount, optimisticBalance]);
+  // Validation is derived from the current input and balance instead of mirrored in state.
+  const normalizedAmount = normalizeAmount(amount);
+  const validationError = !amount
+    ? null
+    : !Number.isFinite(normalizedAmount) || normalizedAmount <= 0
+      ? "Monto inválido"
+      : normalizedAmount < MIN_WITHDRAW
+        ? `Mínimo $${MIN_WITHDRAW.toLocaleString("es-AR")}`
+        : normalizedAmount > optimisticBalance
+          ? "Supera tu saldo"
+          : null;
+  const displayedError = error ?? validationError;
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,7 +86,7 @@ export default function PartnerWallet({ stats }: { stats: PartnerStatsResult }) 
       setIsPending(false);
       setSuccess(true);
       setAmount("");
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Rollback
       setOptimisticBalance((prev) => prev + val);
       setOptimisticReserved((prev) => prev - val);
@@ -103,7 +95,7 @@ export default function PartnerWallet({ stats }: { stats: PartnerStatsResult }) 
       setIsPending(false);
       
       // Human-readable, context-aware error messages
-      const msg = err?.message ?? "";
+      const msg = err instanceof Error ? err.message : "";
       if (msg.includes("disponible")) {
         setError("Tu saldo cambió. Actualizá e intentá de nuevo.");
       } else if (msg.includes("m\u00ednimo") || msg.includes("minimo")) {
@@ -174,7 +166,7 @@ export default function PartnerWallet({ stats }: { stats: PartnerStatsResult }) 
               </button>
             )}
           </div>
-          {error && <span className="error-text">{error}</span>}
+          {displayedError && <span className="error-text">{displayedError}</span>}
           {optimisticBalance >= MIN_WITHDRAW && (
             <div className="max-hint">
               Máximo disponible: ${Math.floor(optimisticBalance).toLocaleString("es-AR")}

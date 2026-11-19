@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { artDayRange } from "@/lib/utils";
 
@@ -70,7 +71,7 @@ export const getTurnosStats = async (
       end = dayEnd;
     }
 
-    const where: any = {
+    const where: Prisma.ShiftWhereInput = {
       branchId,
       openedAt: { gte: start, lte: end },
     };

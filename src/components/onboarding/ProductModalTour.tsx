@@ -10,7 +10,7 @@ export function ProductModalTour() {
     // Si ya completó este módulo o canceló los tours, no lo mostramos.
     if (!masterActive || isModuleCompleted("product-modal")) return;
 
-    let driverObj: any = null;
+    let driverObj: { destroy: () => void; drive: () => void } | null = null;
     let destroyed = false;
 
     // Pequeño delay para que el modal termine de renderizarse
