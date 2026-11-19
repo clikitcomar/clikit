@@ -99,12 +99,17 @@ try {
     const sourceTables = await listTables(source);
     const targetTables = await listTables(target);
     const missingInTarget = sourceTables.filter((name) => !targetTables.includes(name));
-    const missingInSource = targetTables.filter((name) => !sourceTables.includes(name));
+    const destinationOnlyTables = targetTables.filter((name) => !sourceTables.includes(name));
 
-    if (missingInTarget.length || missingInSource.length) {
+    if (missingInTarget.length) {
       throw new Error(
-        "Schema table mismatch. Missing in destination: " + (missingInTarget.join(", ") || "none") +
-        ". Missing in source: " + (missingInSource.join(", ") || "none") + "."
+        "Source tables are missing from destination: " + missingInTarget.join(", ") + "."
+      );
+    }
+    if (destinationOnlyTables.length) {
+      console.log(
+        "Keeping destination-only tables empty because they were added after the legacy source: " +
+        destinationOnlyTables.join(", ")
       );
     }
     if (sourceTables.length === 0) throw new Error("The source database has no application tables.");
