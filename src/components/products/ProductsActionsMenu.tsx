@@ -67,6 +67,7 @@ export default function ProductsActionsMenu({
         style={{ border: "1px solid var(--border)", fontWeight: 700 }}
         onClick={() => setOpen((prev) => !prev)}
         title="Acciones"
+        aria-expanded={open}
       >
         Acciones
       </button>
@@ -83,10 +84,12 @@ export default function ProductsActionsMenu({
             border: "1px solid var(--border)",
             borderRadius: "16px",
             boxShadow: "0 18px 40px rgba(0,0,0,0.45)",
-            overflow: "hidden",
+            maxHeight: "min(70vh, 520px)",
+            overflowY: "auto",
             zIndex: 120,
           }}
         >
+          <div style={menuSectionLabelStyle}>Ayuda</div>
           <button
             className="btn btn-ghost"
             style={menuButtonStyle}
@@ -94,17 +97,19 @@ export default function ProductsActionsMenu({
           >
             Ver tutorial rápido
           </button>
+          <div style={menuDividerStyle} />
+          <div style={menuSectionLabelStyle}>Productos e inventario</div>
           <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onUpdatePrices)}>
             Actualizar precios
           </button>
           <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onRestockHistory)}>
-            Historial ingresos
+            Historial de ingresos
           </button>
           <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onManualValuation)}>
-            Valorar stock
+            Calcular valor del inventario
           </button>
           <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onCorrectInventory)}>
-            Corregir inventario
+            Ajustar stock
           </button>
           <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onSelectionMode)}>
             Seleccionar varios
@@ -113,6 +118,7 @@ export default function ProductsActionsMenu({
           {isOwner && (
             <>
               <div style={menuDividerStyle} />
+              <div style={menuSectionLabelStyle}>Herramientas de catálogo</div>
               <button
                 className="btn btn-ghost"
                 style={menuButtonStyle}
@@ -136,6 +142,7 @@ export default function ProductsActionsMenu({
               {hasMultipleBranches && (
                 <>
                   <div style={menuDividerStyle} />
+                  <div style={menuSectionLabelStyle}>Entre sucursales</div>
                   <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onReplicate)}>
                     Replicar a sucursal
                   </button>
@@ -166,4 +173,13 @@ const menuDividerStyle: CSSProperties = {
   height: "1px",
   background: "var(--border)",
   margin: "0 12px",
+};
+
+const menuSectionLabelStyle: CSSProperties = {
+  padding: "10px 16px 4px",
+  color: "var(--text-3)",
+  fontSize: "10px",
+  fontWeight: 800,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
 };

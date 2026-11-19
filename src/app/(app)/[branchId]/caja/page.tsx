@@ -2675,27 +2675,48 @@ export default function CajaPage() {
         
         {/* Ticket Header / Summary (Sticky dentro del sidebar) */}
         {ticket.length > 0 ? (
-          <div
-            onClick={() => setIsTicketExpanded(!isTicketExpanded)}
+          <button
+            type="button"
+            onClick={() => setIsTicketExpanded((expanded) => !expanded)}
+            disabled={isDesktop}
+            aria-expanded={isTicketExpanded || isDesktop}
+            aria-label={(isDesktop ? "Ticket abierto. " : isTicketExpanded ? "Ocultar detalle del ticket. " : "Ver ticket y cobrar. ") + ticket.length + (ticket.length === 1 ? " ítem. Total " : " ítems. Total ") + formatARS(total)}
             style={{
+              width: "100%",
               padding: "14px 16px",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              cursor: "pointer",
+              gap: "12px",
+              textAlign: "left",
+              font: "inherit",
+              cursor: isDesktop ? "default" : "pointer",
               background: "var(--surface)",
+              color: "var(--text)",
+              border: "none",
               borderBottom: "1px solid var(--border)",
               position: "sticky",
               top: 0,
               zIndex: 1,
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "16px", fontWeight: 700 }}>TOTAL</span>
-              <span style={{ fontSize: "13px", color: "var(--text-3)" }}>({ticket.length} {ticket.length === 1 ? 'ítem' : 'ítems'})</span>
-            </div>
-            <span style={{ fontSize: "20px", fontWeight: 800, color: "var(--primary)" }}>{formatARS(total)}</span>
-          </div>
+            <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "3px", minWidth: 0 }}>
+              <span style={{ fontSize: "15px", fontWeight: 700 }}>
+                {isTicketExpanded || isDesktop ? "Ticket de venta" : "Ver ticket y cobrar"}
+              </span>
+              <span style={{ fontSize: "12px", color: "var(--text-3)" }}>
+                {ticket.length} {ticket.length === 1 ? "ítem" : "ítems"}
+              </span>
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+              <span style={{ fontSize: "20px", fontWeight: 800, color: "var(--primary)" }}>{formatARS(total)}</span>
+              {!isDesktop && (
+                <span aria-hidden="true" style={{ color: "var(--text-2)", fontSize: "18px", lineHeight: 1 }}>
+                  {isTicketExpanded ? "⌃" : "⌄"}
+                </span>
+              )}
+            </span>
+          </button>
         ) : (
           <div 
             style={{ 

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import BackButton from "@/components/ui/BackButton";
@@ -365,7 +366,7 @@ export default function ResumenPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <BackButton fallback={`/${branchId}/caja`} />
-          <h1 style={{ fontSize: "24px", fontWeight: 800, margin: 0 }}>Cierre de caja</h1>
+          <h1 style={{ fontSize: "24px", fontWeight: 800, margin: 0 }}>Resumen del día</h1>
         </div>
         <div style={{ textAlign: "right", marginTop: "4px" }}>
           <div style={{ fontSize: "14px", fontWeight: 600 }}>{fechaFormateada}</div>
@@ -415,7 +416,6 @@ export default function ResumenPage() {
         )}
       </div>
 
-      <ZapAdSlot zone="resumen" branchId={String(branchId)} />
 
       {/* ── Saldo MercadoPago ────────────────────────────────────────────── */}
 
@@ -447,14 +447,19 @@ export default function ResumenPage() {
                 <span style={{ color: "#f97316", fontWeight: 700 }}>{item.stock} / {item.minStock}</span>
               </div>
             ))}
-            {data.lowStockItems.length > 5 && (
-              <div style={{ fontSize: "13px", color: "var(--text-3)", textAlign: "center", marginTop: "4px", fontWeight: 600 }}>
-                y {data.lowStockItems.length - 5} más... (ver inventario)
-              </div>
-            )}
+            <Link
+              href={"/" + branchId + "/productos"}
+              style={{ display: "block", textAlign: "center", marginTop: "4px", padding: "8px 4px", color: "var(--primary)", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}
+            >
+              {data.lowStockItems.length > 5
+                ? "Ver inventario completo (" + (data.lowStockItems.length - 5) + " productos más)"
+                : "Abrir inventario de productos"}
+            </Link>
           </div>
         </div>
       )}
+
+      <ZapAdSlot zone="resumen" branchId={String(branchId)} />
 
       {/* ── Caja Física ─────────────────────────────────────────────────── */}
       <div
@@ -869,7 +874,7 @@ export default function ResumenPage() {
     </div>
 
     <PrintablePage
-      title="Cierre de caja"
+      title="Resumen del día"
       subtitle={fechaFormateada}
       meta={[
         { label: "Ventas", value: formatARS(totalVentas) },
