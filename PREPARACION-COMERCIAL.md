@@ -77,6 +77,7 @@ Estado de Clikit observado:
 - El modo de emision invocado desde Clikit usa `sync=true`; el webhook depende de `ZAP_FISCAL_WEBHOOK_SECRET`.
 - La llamada actual de NC construye un objeto contributor con CUIT vacio y no persiste el resultado fiscal en la factura.
 - La aplicacion limita la V1 a Factura C y Monotributo.
+- El cliente define `emitInvoiceDryRun` y `getArcaStatus`, pero no se encontro uso desde la interfaz o rutas; `getJobStatus` solo se utiliza en la ruta de devolucion. No hay reconciliacion periodica de facturas pendientes.
 - En el proyecto Vercel de produccion revisado no aparecen configuradas las variables `ZAP_FISCAL_BASE_URL`, `ZAP_FISCAL_API_KEY` ni `ZAP_FISCAL_WEBHOOK_SECRET`. No se ejecuto una emision real.
 
 Acceso pendiente:
@@ -114,6 +115,7 @@ Estado observado:
 - Existen pruebas unitarias, pero `src/__tests__/integration.test.ts` contiene mocks y aserciones que no verifican un flujo real de API/DB.
 - No se encontro workflow de GitHub Actions en el repositorio.
 - `verify:release` ejecuta typecheck y build, no tests ni lint.
+- Se agrego `.github/workflows/ci.yml` con PostgreSQL efimero para Prisma validate, tests, lint, typecheck y build. La ejecucion del workflow aun no fue verificada.
 
 Trabajo:
 - Crear pruebas de integracion contra PostgreSQL de ensayo para ventas, turnos, fiados, stock, devoluciones e invoices.
@@ -166,10 +168,12 @@ Aceptacion:
 - [x] Auditoria estatica inicial de Clikit en commit indicado.
 - [x] Comprobacion de salud HTTP de produccion.
 - [x] Rama aislada de trabajo creada.
+- [x] Baseline de migraciones corregido para registrar las cuatro migraciones de esquema al inicializar una base vacia.
+- [x] Workflow de CI agregado; ejecucion pendiente de confirmacion.
 - [ ] Acceso al repo/contrato vigente de NODO ZAP Fiscal.
 - [ ] Backup y restauracion probados en entorno aislado.
 - [ ] Devoluciones financieras/fiscales cerradas.
-- [ ] Suite automatizada de negocio y pipeline.
+- [ ] Suite automatizada de negocio (el pipeline CI fue agregado, aun sin ejecucion confirmada).
 - [ ] Facturacion worker TEST end-to-end aprobada.
 - [ ] Piloto comercial con comercio real aprobado.
 
