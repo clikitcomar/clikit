@@ -482,6 +482,16 @@ model Shift {
   @@index([branchId, openedAt])
 }
 
+model EmployeePinIpRateLimit {
+  id              String   @id
+  attempts        Int      @default(0)
+  windowStartedAt DateTime
+  blockedUntil    DateTime?
+  updatedAt       DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
 model ShiftReminder {
   id                   String                @id @default(cuid())
   branchId             String

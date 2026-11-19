@@ -11,6 +11,7 @@ import {
   getActiveShift,
 } from "@/lib/shift-access";
 import { verifyAndTrackEmployeePin } from "@/lib/employee-pin-lockout";
+import { clearEmployeePinIpRateLimit, enforceEmployeePinIpRateLimit } from "@/lib/employee-pin-ip-rate-limit";
 
 export async function POST(
   req: Request,
@@ -55,6 +56,9 @@ export async function POST(
   let nextEmployeeName = "Dueño";
 
   if (typeof employeeId === "string" && employeeId) {
+    const limited = await enforceEmployeePinIpRateLimit(req, "pin-verification");
+    if (limited) return limited;
+
     const employeeWhere: Prisma.EmployeeWhereInput = {
       id: employeeId,
       branches: { some: { id: branchId } },
@@ -92,6 +96,7 @@ export async function POST(
       return NextResponse.json({ error: message }, { status: pinVerification.reason === "locked" ? 429 : 401 });
     }
 
+    await clearEmployeePinIpRateLimit(req, "pin-verification");
     nextEmployeeId = employee.id;
     nextEmployeeName = employee.name;
   }

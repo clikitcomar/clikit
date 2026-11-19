@@ -11,6 +11,7 @@ import {
   getKioscoAccessContextForSession,
 } from "@/lib/access-control";
 import { verifyAndTrackEmployeePin } from "@/lib/employee-pin-lockout";
+import { clearEmployeePinIpRateLimit } from "@/lib/employee-pin-ip-rate-limit";
 import { UserRole, EmployeeRole } from "@prisma/client";
 import { isPlatformAdmin } from "@/lib/platform-admin";
 
@@ -210,7 +211,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         employeeId: { label: "Employee ID", type: "text" },
         pin: { label: "PIN", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         if (!credentials?.accessKey || !credentials?.employeeId) {
           return null;
         }
@@ -269,6 +270,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!verification.ok) {
           return null;
         }
+        await clearEmployeePinIpRateLimit(request, "employee-login");
 
         return {
           id: `emp_${employee.id}`,

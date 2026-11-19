@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { getBranchContext } from "@/lib/branch";
 import { verifyAndTrackEmployeePin } from "@/lib/employee-pin-lockout";
+import { clearEmployeePinIpRateLimit, enforceEmployeePinIpRateLimit } from "@/lib/employee-pin-ip-rate-limit";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
@@ -29,6 +30,9 @@ export async function POST(req: Request) {
     if (!employeeId || !pin) {
       return NextResponse.json({ ok: false, error: "Datos incompletos" }, { status: 400 });
     }
+
+    const limited = await enforceEmployeePinIpRateLimit(req, "pin-verification");
+    if (limited) return limited;
 
     // Find the employee inside the active branch context
     const employee = await prisma.employee.findFirst({
@@ -71,6 +75,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "PIN incorrecto." }, { status: 401 });
     }
 
+    await clearEmployeePinIpRateLimit(req, "pin-verification");
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Error verifying PIN:", error);

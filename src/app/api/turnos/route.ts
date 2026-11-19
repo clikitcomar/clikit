@@ -7,6 +7,7 @@ import { getBranchContext } from "@/lib/branch";
 import { prisma } from "@/lib/prisma";
 import { getActiveShift } from "@/lib/shift-access";
 import { verifyAndTrackEmployeePin } from "@/lib/employee-pin-lockout";
+import { clearEmployeePinIpRateLimit, enforceEmployeePinIpRateLimit } from "@/lib/employee-pin-ip-rate-limit";
 
 export async function GET(req: Request) {
   const session = await auth();
@@ -56,6 +57,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "La sesión de empleado no es válida." }, { status: 403 });
     }
 
+    const limited = await enforceEmployeePinIpRateLimit(req, "pin-verification");
+    if (limited) return limited;
+
     const employee = await prisma.employee.findFirst({
       where: {
         id: sessionEmployeeId,
@@ -91,9 +95,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: message }, { status: pinVerification.reason === "locked" ? 429 : 401 });
     }
 
+    await clearEmployeePinIpRateLimit(req, "pin-verification");
     finalEmployeeId = employee.id;
     finalEmployeeName = employee.name;
   } else if (typeof employeeId === "string" && employeeId) {
+    const limited = await enforceEmployeePinIpRateLimit(req, "pin-verification");
+    if (limited) return limited;
+
     const employeeWhere: Prisma.EmployeeWhereInput = {
       id: employeeId,
       branches: { some: { id: branchId } },
