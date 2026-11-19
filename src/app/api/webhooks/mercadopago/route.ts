@@ -1,10 +1,9 @@
-import crypto from "crypto";
-
 import { NextRequest, NextResponse } from "next/server";
 
 import { getMpAccessTokenForBranch } from "@/lib/mp-token";
 import { MpIncomingPaymentChannel, prisma } from "@/lib/prisma";
 import { normalizeSubscriptionPriceOverrideEmail } from "@/lib/subscription-price-overrides";
+import { verifyMercadoPagoWebhookSignature } from "@/lib/mercadopago-webhook-signature";
 import { SubscriptionStatus } from "@prisma/client";
 
 type MpWebhookPayload = {
@@ -93,21 +92,34 @@ export async function POST(req: NextRequest) {
     let v1 = "";
 
     sigParts.forEach((part) => {
-      const [key, val] = part.split("=");
+      const separatorIndex = part.indexOf("=");
+      if (separatorIndex < 0) return;
+      const key = part.slice(0, separatorIndex).trim();
+      const val = part.slice(separatorIndex + 1).trim();
       if (key === "ts") ts = val;
       if (key === "v1") v1 = val;
     });
 
     const secretKey = process.env.MP_WEBHOOK_SECRET;
     if (!secretKey) {
-      console.warn("MP_WEBHOOK_SECRET no configurado, omitiendo validacion.");
-    } else {
-      const template = `id:${body.data?.id};request-id:${xRequestId};ts:${ts};`;
-      const hmac = crypto.createHmac("sha256", secretKey).update(template).digest("hex");
-      if (hmac !== v1) {
-        console.error("Firma de MP invalida.");
-        return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
-      }
+      console.error("MP_WEBHOOK_SECRET no configurado; webhook rechazado.");
+      return NextResponse.json(
+        { error: "Webhook temporalmente deshabilitado: falta configurar MP_WEBHOOK_SECRET." },
+        { status: 503 },
+      );
+    }
+
+    const signatureValid = verifyMercadoPagoWebhookSignature({
+      secret: secretKey,
+      dataId: body.data?.id,
+      requestId: xRequestId,
+      timestamp: ts,
+      signature: v1,
+    });
+
+    if (!signatureValid) {
+      console.error("Firma de MP invalida o incompleta.");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
     }
 
     const webhookTopics = collectWebhookTopics(req, body);
