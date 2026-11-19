@@ -28,6 +28,15 @@ npx prisma migrate dev --name descripcion-del-cambio
 
 ### Para producción (Vercel/Neon)
 
+El comando `npm run build` ejecuta primero `scripts/migrate-db.mjs`:
+
+- Si la base está vacía, crea el esquema completo desde `schema.prisma` y registra las dos migraciones históricas como aplicadas.
+- Si ya existe un esquema sin historial Prisma, solo lo adopta cuando una comparación confirma que coincide exactamente con el esquema actual.
+- Si ya hay historial de migraciones, ejecuta `prisma migrate deploy` para aplicar únicamente las pendientes.
+- Ante tablas preexistentes con diferencias y sin historial, detiene el build. No hace reset ni elimina datos.
+
+Prisma CLI usa `DATABASE_URL_UNPOOLED` cuando está disponible para ejecutar las migraciones con una conexión directa.
+
 ```bash
 # Las migraciones se ejecutan automáticamente en el build
 # o manualmente:
