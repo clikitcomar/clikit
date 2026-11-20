@@ -370,6 +370,32 @@ function formatExpiryBadge(product: Product) {
   return null;
 }
 
+function isProductWithoutAvailableStock(product: Product) {
+  return Boolean(
+    product.isNegativeStock ||
+    product.isOutOfStock ||
+    product.variants?.some((variant) => variant.isNegativeStock || variant.isOutOfStock),
+  );
+}
+
+function isProductBelowMinimum(product: Product) {
+  return Boolean(
+    product.isBelowMinStock ||
+    product.variants?.some((variant) => variant.isBelowMinStock),
+  );
+}
+
+function hasProductExpiryAttention(product: Product) {
+  return (product.expiredQuantity ?? 0) > 0 || (product.expiringSoonQuantity ?? 0) > 0;
+}
+
+function getInventoryAttentionPriority(product: Product) {
+  if (isProductWithoutAvailableStock(product)) return 0;
+  if (isProductBelowMinimum(product)) return 1;
+  if (hasProductExpiryAttention(product)) return 2;
+  return 3;
+}
+
 function renderExpiryBadge(product: Product) {
   const label = formatExpiryBadge(product);
   if (!label) {
@@ -5387,6 +5413,8 @@ export default function ProductosPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showHidden, setShowHidden] = useState(false);
+  const [activeView, setActiveView] = useState<"catalog" | "inventory">("catalog");
+  const [stockFilter, setStockFilter] = useState<"all" | "low" | "empty" | "expiry">("all");
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [percentStr, setPercentStr] = useState("15");
   const [modal, setModal] = useState<"new" | Product | null>(null);
@@ -5595,6 +5623,14 @@ export default function ProductosPage() {
     }
   }, [branchId, clearWelcomeSubscriptionFlag]);
 
+  const inventoryProducts = products.filter((product) => showHidden || product.showInGrid);
+  const inventoryCounts = {
+    all: inventoryProducts.length,
+    low: inventoryProducts.filter(isProductBelowMinimum).length,
+    empty: inventoryProducts.filter(isProductWithoutAvailableStock).length,
+    expiry: inventoryProducts.filter(hasProductExpiryAttention).length,
+  };
+
   const filtered = products.filter((p) => {
     const normalizedSearch = search.toLowerCase();
     const searchHaystack = [
@@ -5611,8 +5647,29 @@ export default function ProductosPage() {
       .toLowerCase();
     const matchSearch = searchHaystack.includes(normalizedSearch);
     const matchVisibility = showHidden ? true : p.showInGrid;
-    return matchSearch && matchVisibility;
+    const matchInventoryState =
+      activeView !== "inventory" ||
+      stockFilter === "all" ||
+      (stockFilter === "low" && isProductBelowMinimum(p)) ||
+      (stockFilter === "empty" && isProductWithoutAvailableStock(p)) ||
+      (stockFilter === "expiry" && hasProductExpiryAttention(p));
+
+    return matchSearch && matchVisibility && matchInventoryState;
   });
+
+  const displayedProducts =
+    activeView === "inventory"
+      ? [...filtered].sort(
+          (a, b) => getInventoryAttentionPriority(a) - getInventoryAttentionPriority(b),
+        )
+      : filtered;
+
+  const inventoryFilterOptions = [
+    { value: "all" as const, label: "Todos", count: inventoryCounts.all },
+    { value: "low" as const, label: "Bajo mínimo", count: inventoryCounts.low },
+    { value: "empty" as const, label: "Sin stock", count: inventoryCounts.empty },
+    { value: "expiry" as const, label: "Vencimientos", count: inventoryCounts.expiry },
+  ];
 
   const selectedProducts = useMemo(
     () => products.filter((product) => selected.has(product.id)),
@@ -5886,20 +5943,15 @@ export default function ProductosPage() {
             <BackButton />
           )}
           <h1 style={{ fontSize: "28px", lineHeight: 1.05, fontWeight: 900 }}>Productos</h1>
+          <p style={{ margin: 0, color: "var(--text-3)", fontSize: "13px", lineHeight: 1.4 }}>
+            {activeView === "catalog"
+              ? "Catálogo, códigos, presentaciones y precios."
+              : "Existencias, mínimos y vencimientos por producto."}
+          </p>
         </div>
         <div className="products-header-actions" style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
           {!selectionMode && (
             <>
-              <button
-                className="btn btn-sm btn-ghost"
-                style={{ border: "1px solid var(--border)", fontWeight: 700 }}
-                onClick={() => {
-                  setStockModalPreset({ initialOperation: "receive" });
-                  setShowStockModal(true);
-                }}
-                id="tour-receive-btn"
-                title="Recibir mercadería"
-              >📥 Recibir</button>
               {isOwner && (
                 <>
                   <button
@@ -5946,6 +5998,10 @@ export default function ProductosPage() {
                 onTransfer={() => setShowTransferirModal(true)}
                 onManualValuation={() => setShowInventoryValuationModal(true)}
                 onRestockHistory={() => setShowRestockHistoryModal(true)}
+                onReceiveStock={() => {
+                  setStockModalPreset({ initialOperation: "receive" });
+                  setShowStockModal(true);
+                }}
                 onCorrectInventory={() => {
                   setStockModalPreset({ initialOperation: "correct" });
                   setShowStockModal(true);
@@ -5959,12 +6015,117 @@ export default function ProductosPage() {
         </div>
       </div>
 
+      <div
+        role="group"
+        aria-label="Vista de productos"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: "4px",
+          padding: "4px",
+          marginBottom: "12px",
+          border: "1px solid var(--border)",
+          borderRadius: "14px",
+          background: "var(--surface)",
+        }}
+      >
+        <button
+          type="button"
+          className={"btn btn-sm " + (activeView === "catalog" ? "btn-primary" : "btn-ghost")}
+          aria-pressed={activeView === "catalog"}
+          onClick={() => setActiveView("catalog")}
+          style={{ minHeight: "42px", fontWeight: 800, borderRadius: "10px" }}
+        >
+          ▦ Catálogo
+        </button>
+        <button
+          type="button"
+          className={"btn btn-sm " + (activeView === "inventory" ? "btn-primary" : "btn-ghost")}
+          aria-pressed={activeView === "inventory"}
+          onClick={() => setActiveView("inventory")}
+          style={{ minHeight: "42px", fontWeight: 800, borderRadius: "10px" }}
+        >
+          📦 Inventario
+        </button>
+      </div>
+
+      {activeView === "inventory" && (
+        <div
+          aria-label="Filtros de inventario"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))",
+            gap: "8px",
+            marginBottom: "12px",
+          }}
+        >
+          {inventoryFilterOptions.map((option) => {
+            const isActive = stockFilter === option.value;
+            const tone =
+              option.value === "empty"
+                ? "var(--red)"
+                : option.value === "low" || option.value === "expiry"
+                  ? "var(--amber)"
+                  : "var(--text)";
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className="card"
+                aria-pressed={isActive}
+                onClick={() => setStockFilter(option.value)}
+                style={{
+                  minWidth: 0,
+                  padding: "10px 12px",
+                  textAlign: "left",
+                  border: isActive ? "1px solid var(--primary)" : "1px solid var(--border)",
+                  background: isActive
+                    ? "rgba(var(--primary-rgb, 34, 197, 94), 0.08)"
+                    : "var(--surface)",
+                  boxShadow: isActive ? "0 0 0 1px rgba(34,197,94,0.08) inset" : "none",
+                  cursor: "pointer",
+                }}
+              >
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: "20px",
+                    lineHeight: 1.1,
+                    fontWeight: 900,
+                    color: isActive ? "var(--primary)" : tone,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {option.count}
+                </span>
+                <span
+                  style={{
+                    display: "block",
+                    marginTop: "4px",
+                    fontSize: "11px",
+                    lineHeight: 1.25,
+                    color: "var(--text-2)",
+                    fontWeight: 700,
+                  }}
+                >
+                  {option.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Search & filters */}
         <div style={{ display: "flex", gap: "8px", marginBottom: "16px", alignItems: "center" }}>
           <input
             ref={searchInputRef}
             className="input"
-            placeholder="🔍 Buscar por nombre, codigo o proveedor..."
+            placeholder={
+              activeView === "catalog"
+                ? "🔍 Buscar por nombre, marca, código o proveedor..."
+                : "🔍 Buscar producto, variante, código o proveedor..."
+            }
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ flex: 1 }}
@@ -6006,12 +6167,15 @@ export default function ProductosPage() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, overflowY: "auto" }}>
           <ProductsGridTour shouldShow={products.length <= 1} />
-          {filtered.map((p, productIndex) => {
+          {displayedProducts.map((p, productIndex) => {
             const isSelected = selected.has(p.id);
-            const expiryBadge = renderExpiryBadge(p);
-            const stockBadge = renderStockBadge(p);
-            const stockSummary = renderProductStockSummary(p);
-            const platformSyncBadge = renderPlatformSyncBadge(p, Boolean(isOwner));
+            const showInventoryDetails = activeView === "inventory";
+            const expiryBadge = showInventoryDetails ? renderExpiryBadge(p) : null;
+            const stockBadge = showInventoryDetails ? renderStockBadge(p) : null;
+            const stockSummary = showInventoryDetails ? renderProductStockSummary(p) : null;
+            const platformSyncBadge = !showInventoryDetails
+              ? renderPlatformSyncBadge(p, Boolean(isOwner))
+              : null;
             const cardChrome = getProductCardBorder(p);
             return selectionMode ? (
               // ─── Selection Mode Card
@@ -6199,14 +6363,20 @@ export default function ProductosPage() {
                   </div>
                   <div
                     style={{
-                      fontSize: "calc(20px * var(--device-font-scale, 1))",
+                      fontSize: showInventoryDetails
+                        ? "calc(15px * var(--device-font-scale, 1))"
+                        : "calc(20px * var(--device-font-scale, 1))",
                       fontWeight: 900,
-                      color: "#f8fafc",
-                      background: "linear-gradient(180deg, rgba(15,23,42,.96), rgba(30,41,59,.96))",
-                      border: "1px solid rgba(148,163,184,.2)",
-                      borderRadius: "14px",
-                      padding: "9px 12px",
-                      boxShadow: "0 10px 22px rgba(2,6,23,.18)",
+                      color: showInventoryDetails ? "var(--text-2)" : "#f8fafc",
+                      background: showInventoryDetails
+                        ? "var(--surface-2, rgba(148,163,184,0.10))"
+                        : "linear-gradient(180deg, rgba(15,23,42,.96), rgba(30,41,59,.96))",
+                      border: showInventoryDetails
+                        ? "1px solid var(--border)"
+                        : "1px solid rgba(148,163,184,.2)",
+                      borderRadius: "12px",
+                      padding: showInventoryDetails ? "7px 9px" : "9px 12px",
+                      boxShadow: showInventoryDetails ? "none" : "0 10px 22px rgba(2,6,23,.18)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
@@ -6219,8 +6389,14 @@ export default function ProductosPage() {
           })}
           {filtered.length === 0 && (
             <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-3)" }}>
-              {search ? (
-                <div>Sin resultados para esa búsqueda.</div>
+              {search || (activeView === "inventory" && stockFilter !== "all") || products.length > 0 ? (
+                <div>
+                  {search
+                    ? "Sin resultados para esa búsqueda."
+                    : activeView === "inventory" && stockFilter !== "all"
+                      ? "No hay productos que coincidan con este estado."
+                      : "No hay productos visibles con los filtros actuales."}
+                </div>
               ) : (
                 <>
                   <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>

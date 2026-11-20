@@ -14,6 +14,7 @@ export default function ProductsActionsMenu({
   onPlatformSync,
   onReplicate,
   onTransfer,
+  onReceiveStock,
   onCorrectInventory,
   onManualValuation,
   onRestockHistory,
@@ -30,6 +31,7 @@ export default function ProductsActionsMenu({
   onPlatformSync: () => void;
   onReplicate: () => void;
   onTransfer: () => void;
+  onReceiveStock: () => void;
   onCorrectInventory: () => void;
   onManualValuation: () => void;
   onRestockHistory: () => void;
@@ -68,6 +70,7 @@ export default function ProductsActionsMenu({
         onClick={() => setOpen((prev) => !prev)}
         title="Acciones"
         aria-expanded={open}
+        id="tour-receive-btn"
       >
         Acciones
       </button>
@@ -99,6 +102,12 @@ export default function ProductsActionsMenu({
           </button>
           <div style={menuDividerStyle} />
           <div style={menuSectionLabelStyle}>Productos e inventario</div>
+          <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onReceiveStock)}>
+            📥 Recibir mercadería
+          </button>
+          <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onCorrectInventory)}>
+            🧮 Corregir inventario
+          </button>
           <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onUpdatePrices)}>
             Actualizar precios
           </button>
@@ -107,9 +116,6 @@ export default function ProductsActionsMenu({
           </button>
           <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onManualValuation)}>
             Calcular valor del inventario
-          </button>
-          <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onCorrectInventory)}>
-            Ajustar stock
           </button>
           <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onSelectionMode)}>
             Seleccionar varios
