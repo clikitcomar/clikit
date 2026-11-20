@@ -56,7 +56,7 @@ export function ProductsGridTour({ shouldShow }: { shouldShow: boolean }) {
               popover: {
                 title: "Ingreso de Stock 📥",
                 description:
-                  "Cuando llegue mercadería, usá este botón para sumar cantidades y cargar vencimientos rápidamente.",
+                  "Abrí Acciones y elegí «Recibir mercadería» para sumar cantidades y cargar vencimientos, o «Corregir inventario» para ajustar el saldo.",
                 side: "bottom",
                 align: "start",
                 nextBtnText: "Siguiente →",
