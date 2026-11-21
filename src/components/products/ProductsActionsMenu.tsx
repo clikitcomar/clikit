@@ -20,6 +20,7 @@ export default function ProductsActionsMenu({
   onRestockHistory,
   onUpdatePrices,
   onSelectionMode,
+  showStockActions = true,
 }: {
   isOwner: boolean;
   exporting: boolean;
@@ -37,6 +38,7 @@ export default function ProductsActionsMenu({
   onRestockHistory: () => void;
   onUpdatePrices: () => void;
   onSelectionMode: () => void;
+  showStockActions?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -101,21 +103,27 @@ export default function ProductsActionsMenu({
             Ver tutorial rápido
           </button>
           <div style={menuDividerStyle} />
-          <div style={menuSectionLabelStyle}>Productos e inventario</div>
-          <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onReceiveStock)}>
-            📥 Recibir mercadería
-          </button>
-          <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onCorrectInventory)}>
-            🧮 Corregir inventario
-          </button>
+          <div style={menuSectionLabelStyle}>
+            {showStockActions ? "Productos e inventario" : "Herramientas de productos"}
+          </div>
+          {showStockActions && (
+            <>
+              <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onReceiveStock)}>
+                📥 Recibir mercadería
+              </button>
+              <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onCorrectInventory)}>
+                🧮 Corregir inventario
+              </button>
+              <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onRestockHistory)}>
+                Historial de ingresos
+              </button>
+              <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onManualValuation)}>
+                Calcular valor del inventario
+              </button>
+            </>
+          )}
           <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onUpdatePrices)}>
             Actualizar precios
-          </button>
-          <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onRestockHistory)}>
-            Historial de ingresos
-          </button>
-          <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onManualValuation)}>
-            Calcular valor del inventario
           </button>
           <button className="btn btn-ghost" style={menuButtonStyle} onClick={() => run(onSelectionMode)}>
             Seleccionar varios
