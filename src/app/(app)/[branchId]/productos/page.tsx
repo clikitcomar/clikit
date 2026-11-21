@@ -3676,8 +3676,8 @@ function StockLoadingModal({
 
   const visibleChangedCount = eligible.filter(productHasChanges).length;
   const helperCopy = isReceiveFlow
-    ? "Busca por nombre, marca, proveedor, descripción, presentación o código. Si no existe localmente, también consultamos la base colaborativa."
-    : "Busca el producto correcto y carga el stock fisico final. El valor reemplaza el inventario actual.";
+    ? "Buscá por nombre, marca, proveedor, descripción, presentación o código. Si no existe localmente, también consultamos la base colaborativa. Indicá cuántas unidades ingresaron: se suman al stock actual."
+    : "Buscá el producto, contá las unidades que hay físicamente e ingresá el total real. Esta cantidad reemplaza el stock registrado; no se suma.";
 
   const getStatusChipStyle = (tone: "negative" | "out" | "low") =>
     tone === "negative"
@@ -5665,10 +5665,10 @@ export default function ProductosPage() {
       : filtered;
 
   const inventoryFilterOptions = [
-    { value: "all" as const, label: "Todos", count: inventoryCounts.all },
-    { value: "low" as const, label: "Bajo mínimo", count: inventoryCounts.low },
-    { value: "empty" as const, label: "Sin stock", count: inventoryCounts.empty },
-    { value: "expiry" as const, label: "Vencimientos", count: inventoryCounts.expiry },
+    { value: "all" as const, label: "Todos", description: "Todos los productos", count: inventoryCounts.all },
+    { value: "low" as const, label: "Bajo mínimo", description: "Necesitan reposición", count: inventoryCounts.low },
+    { value: "empty" as const, label: "Sin stock", description: "No hay unidades disponibles", count: inventoryCounts.empty },
+    { value: "expiry" as const, label: "Vencimientos", description: "Vencidos o próximos a vencer", count: inventoryCounts.expiry },
   ];
 
   const selectedProducts = useMemo(
@@ -6008,6 +6008,7 @@ export default function ProductosPage() {
                 }}
                 onUpdatePrices={() => setShowUpdateModal(true)}
                 onSelectionMode={toggleSelectionMode}
+                showStockActions={activeView !== "inventory"}
               />
               <button id="tour-new-product" className="btn btn-sm btn-green" onClick={() => setModal("new")} style={{ fontWeight: 800 }}>+ Nuevo</button>
             </>
@@ -6050,6 +6051,101 @@ export default function ProductosPage() {
       </div>
 
       {activeView === "inventory" && (
+        <section
+          aria-label="Acciones de inventario"
+          style={{
+            display: "grid",
+            gap: "12px",
+            marginBottom: "16px",
+            padding: "16px",
+            border: "1px solid var(--border)",
+            borderRadius: "16px",
+            background: "var(--surface)",
+          }}
+        >
+          <div style={{ display: "grid", gap: "4px" }}>
+            <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 800 }}>¿Qué necesitás hacer?</h2>
+            <p style={{ margin: 0, color: "var(--text-2)", fontSize: "12px", lineHeight: 1.5 }}>
+              Elegí según lo que pasó con la mercadería. Cada movimiento queda registrado.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 230px), 1fr))",
+              gap: "10px",
+            }}
+          >
+            <button
+              type="button"
+              className="card"
+              onClick={() => {
+                setStockModalPreset({ initialOperation: "receive" });
+                setShowStockModal(true);
+              }}
+              style={{
+                display: "grid",
+                gap: "6px",
+                padding: "14px 16px",
+                textAlign: "left",
+                border: "1px solid var(--border)",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: "14px", fontWeight: 800, color: "var(--text)" }}>
+                📥 Recibir mercadería
+              </span>
+              <span style={{ fontSize: "12px", lineHeight: 1.5, color: "var(--text-2)" }}>
+                Sumá las unidades que ingresaron. Se agregan al stock que ya tenés.
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className="card"
+              onClick={() => {
+                setStockModalPreset({ initialOperation: "correct" });
+                setShowStockModal(true);
+              }}
+              style={{
+                display: "grid",
+                gap: "6px",
+                padding: "14px 16px",
+                textAlign: "left",
+                border: "1px solid var(--border)",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: "14px", fontWeight: 800, color: "var(--text)" }}>
+                🧮 Contar y corregir stock
+              </span>
+              <span style={{ fontSize: "12px", lineHeight: 1.5, color: "var(--text-2)" }}>
+                Contá lo que hay físicamente. Esa cantidad reemplaza el stock registrado; no se suma.
+              </span>
+            </button>
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => setShowRestockHistoryModal(true)}
+            >
+              📋 Ver historial de ingresos
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => setShowInventoryValuationModal(true)}
+            >
+              📊 Calcular valor del inventario
+            </button>
+          </div>
+        </section>
+      )}
+
+      {activeView === "inventory" && (
         <div
           aria-label="Filtros de inventario"
           style={{
@@ -6073,6 +6169,8 @@ export default function ProductosPage() {
                 type="button"
                 className="card"
                 aria-pressed={isActive}
+                aria-label={`${option.count} productos: ${option.label}. ${option.description}`}
+                title={option.description}
                 onClick={() => setStockFilter(option.value)}
                 style={{
                   minWidth: 0,
@@ -6109,6 +6207,18 @@ export default function ProductosPage() {
                   }}
                 >
                   {option.label}
+                </span>
+                <span
+                  style={{
+                    display: "block",
+                    marginTop: "3px",
+                    fontSize: "10px",
+                    lineHeight: 1.25,
+                    color: "var(--text-2)",
+                    fontWeight: 500,
+                  }}
+                >
+                  {option.description}
                 </span>
               </button>
             );
