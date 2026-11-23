@@ -44,6 +44,7 @@ export type AccessBlockReason =
   | "SUBSCRIPTION_PAUSED"
   | "SUBSCRIPTION_CANCELLED"
   | "TRIAL_ACTIVE"
+  | "FREE_TIER"
   | "NO_BRANCH"
   | "UNAUTHORIZED";
 
@@ -227,8 +228,10 @@ function buildContext(input: {
   }
 
   return {
-    allowed: false,
-    reason: input.kioscoId ? mapSubscriptionReason(input.subscriptionStatus ?? null) : "NO_KIOSCO",
+    // Un comercio sin suscripción paga conserva acceso al producto.
+    // El límite gratuito se aplica al crear ventas, no al resto de la operación.
+    allowed: Boolean(input.kioscoId),
+    reason: input.kioscoId ? "FREE_TIER" : "NO_KIOSCO",
     isPlatformAdmin: false,
     kioscoId: input.kioscoId ?? null,
     kioscoName: input.kioscoName ?? null,
@@ -243,6 +246,8 @@ function buildContext(input: {
 
 export function getAccessBlockMessage(reason: AccessBlockReason) {
   switch (reason) {
+    case "FREE_TIER":
+      return "Estás usando el plan gratuito de Clikit.";
     case "NO_SUBSCRIPTION":
       return "No hay una suscripcion activa para este kiosco.";
     case "ADMIN_FORCE_BLOCK":
@@ -276,6 +281,7 @@ export function canAccessSetupWithoutSubscription(
 
   return (
     access.reason === "NO_SUBSCRIPTION" ||
+    access.reason === "FREE_TIER" ||
     access.reason === "SUBSCRIPTION_PENDING" ||
     access.reason === "SUBSCRIPTION_PAUSED" ||
     access.reason === "SUBSCRIPTION_CANCELLED"

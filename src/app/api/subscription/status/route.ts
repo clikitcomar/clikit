@@ -5,6 +5,7 @@ import { getBranchId } from "@/lib/branch";
 import { prisma } from "@/lib/prisma";
 import { getSubscriptionPriceOverrideForEmail } from "@/lib/subscription-price-overrides";
 import { resolveSubscriptionPricing } from "@/lib/subscription-offers";
+import { getPlatformSalesPolicy } from "@/lib/platform-sales-policy";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -51,11 +52,14 @@ export async function GET(req: NextRequest) {
 
   const now = new Date();
   const activeGrant = branch.kiosco.accessGrants.find((grant) => grant.startsAt <= now && grant.endsAt >= now);
-  const priceOverride =
+  const [priceOverride, salesPolicy] = await Promise.all([
     session.user.role === "EMPLOYEE"
-      ? null
-      : await getSubscriptionPriceOverrideForEmail(session.user.email);
+      ? Promise.resolve(null)
+      : getSubscriptionPriceOverrideForEmail(session.user.email),
+    getPlatformSalesPolicy(),
+  ]);
   const pricing = resolveSubscriptionPricing({
+    defaultPriceArs: salesPolicy.subscriptionPriceArs,
     emailOverrideAmount: priceOverride?.amount ?? null,
     offerPriceArs: branch.kiosco.subscriptionOfferPriceArs,
     offerFreezeEndsAt: branch.kiosco.subscriptionOfferFreezeEndsAt,

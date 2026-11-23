@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { guardOperationalAccess } from "@/lib/access-control";
+import { getAccessBlockMessage, getKioscoAccessContextForSession } from "@/lib/access-control";
 import { getBranchId } from "@/lib/branch";
 import { allocateSaleItemCosts } from "@/lib/inventory-cost-consumption";
 import { consumeTrackedLotsFefo, getOpenStockLots, summarizeTrackedLots } from "@/lib/inventory-expiry";
@@ -11,6 +11,10 @@ import { NextResponse } from "next/server";
 
 import { canOperateShift, createShiftForbiddenResponse, getActiveShift } from "@/lib/shift-access";
 import { loadAndApplyPromos, persistPromoResult } from "@/lib/promo-loader";
+import {
+  countKioscoSalesForDay,
+  isDailySalesLimitExemptReason,
+} from "@/lib/platform-sales-policy";
 
 type RawSaleItem = {
   productId?: string | null;
@@ -28,6 +32,24 @@ class RouteError extends Error {
   constructor(message: string, status = 400) {
     super(message);
     this.status = status;
+  }
+}
+
+class DailySalesLimitError extends Error {
+  used: number;
+  limit: number;
+  priceArs: number;
+  nextResetAt: Date;
+  timeZone: string;
+
+  constructor(args: { used: number; limit: number; priceArs: number; nextResetAt: Date; timeZone: string }) {
+    super("Hoy alcanzaste el límite de ventas del plan gratuito.");
+    this.name = "DailySalesLimitError";
+    this.used = args.used;
+    this.limit = args.limit;
+    this.priceArs = args.priceArs;
+    this.nextResetAt = args.nextResetAt;
+    this.timeZone = args.timeZone;
   }
 }
 
@@ -369,9 +391,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const accessResponse = await guardOperationalAccess(session.user);
-  if (accessResponse) {
-    return accessResponse;
+  const access = await getKioscoAccessContextForSession(session.user);
+  if (!access.allowed) {
+    return NextResponse.json(
+      {
+        error: getAccessBlockMessage(access.reason),
+        code: access.reason,
+      },
+      { status: 402 },
+    );
   }
 
   const branchId = await getBranchId(req, session.user.id);
@@ -389,6 +417,9 @@ export async function POST(req: Request) {
       typeof body?.creditCustomerId === "string" && body.creditCustomerId ? body.creditCustomerId : null;
     const couponCode =
       typeof body?.couponCode === "string" && body.couponCode.trim() ? body.couponCode.trim() : null;
+
+    const shouldMeterSales =
+      Boolean(access.kioscoId) && !isDailySalesLimitExemptReason(access.reason);
 
     const activeShift = await getActiveShift(branchId);
     if (!activeShift) {
@@ -409,6 +440,36 @@ export async function POST(req: Request) {
           include: { items: true },
         });
         if (existingSale) return existingSale;
+      }
+
+      if (shouldMeterSales && access.kioscoId) {
+        const lockKey = `clikit-daily-sales:${access.kioscoId}`;
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`;
+
+        const meteredSalesPolicy = await tx.platformSalesPolicy.findUnique({
+          where: { id: "global" },
+        });
+        if (!meteredSalesPolicy) {
+          throw new Error("La política comercial global no está inicializada.");
+        }
+
+        if (meteredSalesPolicy.freeDailySalesLimit > 0) {
+          const usage = await countKioscoSalesForDay(
+            tx,
+            access.kioscoId,
+            meteredSalesPolicy.timeZone,
+          );
+
+          if (usage.count >= meteredSalesPolicy.freeDailySalesLimit) {
+            throw new DailySalesLimitError({
+              used: usage.count,
+              limit: meteredSalesPolicy.freeDailySalesLimit,
+              priceArs: meteredSalesPolicy.subscriptionPriceArs,
+              nextResetAt: usage.end,
+              timeZone: meteredSalesPolicy.timeZone,
+            });
+          }
+        }
       }
 
       const branchSettings = await tx.branch.findUnique({
@@ -560,6 +621,22 @@ export async function POST(req: Request) {
 
     return NextResponse.json(sale);
   } catch (error) {
+    if (error instanceof DailySalesLimitError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: "DAILY_SALES_LIMIT_REACHED",
+          used: error.used,
+          limit: error.limit,
+          priceArs: error.priceArs,
+          nextResetAt: error.nextResetAt.toISOString(),
+          timeZone: error.timeZone,
+          canManageSubscription: session.user.role !== UserRole.EMPLOYEE,
+        },
+        { status: 429 },
+      );
+    }
+
     if (error instanceof RouteError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }

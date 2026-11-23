@@ -14,6 +14,7 @@ type PendingSaleRecord = {
   paymentMethod: string;
   receivedAmount?: number | null;
   creditCustomerId?: string | null;
+  retryAfterAt?: number;
 };
 
 async function resolveDbName() {
@@ -68,13 +69,47 @@ export async function clearPendingSale(id: number) {
   await db.delete(STORE_NAME, id);
 }
 
+let dailyQuotaRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let dailyQuotaRetryAt = 0;
+
+function scheduleDailyQuotaRetry(timestamp: number) {
+  if (typeof window === "undefined" || !Number.isFinite(timestamp)) return;
+  if (dailyQuotaRetryAt && dailyQuotaRetryAt <= timestamp) return;
+
+  if (dailyQuotaRetryTimer) {
+    clearTimeout(dailyQuotaRetryTimer);
+  }
+
+  dailyQuotaRetryAt = timestamp;
+  dailyQuotaRetryTimer = setTimeout(() => {
+    dailyQuotaRetryTimer = null;
+    dailyQuotaRetryAt = 0;
+    void syncPendingSales();
+  }, Math.max(250, timestamp - Date.now() + 1000));
+}
+
 export async function syncPendingSales() {
   if (!navigator.onLine) return;
+
   const sales = (await getPendingSales()) as PendingSaleRecord[];
   if (sales.length === 0) return;
 
+  const now = Date.now();
+  const nextRetryAt = sales
+    .map((sale) => sale.retryAfterAt)
+    .filter((value): value is number => typeof value === "number" && value > now)
+    .sort((a, b) => a - b)[0];
+
+  if (nextRetryAt) {
+    scheduleDailyQuotaRetry(nextRetryAt);
+  }
+
   for (const sale of sales) {
     if (!sale.id) {
+      continue;
+    }
+
+    if (sale.retryAfterAt && sale.retryAfterAt > Date.now()) {
       continue;
     }
 
@@ -84,8 +119,15 @@ export async function syncPendingSales() {
     }
 
     try {
-      const { id, timestamp: _timestamp, ...payload } = sale;
+      const {
+        id,
+        timestamp: _timestamp,
+        retryAfterAt: _retryAfterAt,
+        ...payload
+      } = sale;
       void _timestamp;
+      void _retryAfterAt;
+
       const res = await fetch("/api/ventas", {
         method: "POST",
         headers: {
@@ -97,6 +139,19 @@ export async function syncPendingSales() {
 
       if (res.ok) {
         await clearPendingSale(id);
+        continue;
+      }
+
+      if (res.status === 429) {
+        const responseData = await res.json().catch(() => null);
+        if (responseData?.code === "DAILY_SALES_LIMIT_REACHED" && typeof responseData.nextResetAt === "string") {
+          const retryAt = Date.parse(responseData.nextResetAt);
+          if (Number.isFinite(retryAt) && retryAt > Date.now()) {
+            const db = await getDb();
+            await db.put(STORE_NAME, { ...sale, retryAfterAt: retryAt });
+            scheduleDailyQuotaRetry(retryAt);
+          }
+        }
       }
     } catch (err) {
       console.error("Error syncing sale", err);

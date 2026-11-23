@@ -2,13 +2,11 @@
 
 import { useState, useMemo } from "react";
 import {
-  LIST_PRICE,
   COMM_FIRST_PCT,
   COMM_RECUR_PCT,
-  COMM_FIRST_AMT,
-  COMM_RECUR_AMT,
   formatArs,
 } from "@/lib/pricing-constants";
+import { usePlatformSubscriptionPrice } from "@/lib/hooks/use-platform-subscription-price";
 
 interface Milestone {
   label: string;
@@ -33,14 +31,14 @@ const MILESTONES: Milestone[] = [
 
 const GOAL = 1_000_000;
 
-function computeProjection(pace: number, months: number): ProjectionRow[] {
+function computeProjection(pace: number, months: number, priceArs: number): ProjectionRow[] {
   const rows: ProjectionRow[] = [];
   let cartera = 0;
   for (let m = 1; m <= months; m++) {
     const nuevos = pace;
     cartera += nuevos;
-    const comNuevos = nuevos * COMM_FIRST_AMT;
-    const comCartera = (cartera - nuevos) * COMM_RECUR_AMT;
+    const comNuevos = nuevos * Math.round(priceArs * COMM_FIRST_PCT);
+    const comCartera = (cartera - nuevos) * Math.round(priceArs * COMM_RECUR_PCT);
     const total = comNuevos + comCartera;
     rows.push({
       month: m,
@@ -54,7 +52,7 @@ function computeProjection(pace: number, months: number): ProjectionRow[] {
   return rows;
 }
 
-function computeMilestones(pace: number): (Milestone & { months: number; clients: number })[] {
+function computeMilestones(pace: number, priceArs: number): (Milestone & { months: number; clients: number })[] {
   return MILESTONES.map((target) => {
     let cartera = 0;
     let m = 0;
@@ -62,8 +60,8 @@ function computeMilestones(pace: number): (Milestone & { months: number; clients
     while (true) {
       m++;
       cartera += pace;
-      const comNuevos = pace * COMM_FIRST_AMT;
-      const comCartera = (cartera - pace) * COMM_RECUR_AMT;
+      const comNuevos = pace * Math.round(priceArs * COMM_FIRST_PCT);
+      const comCartera = (cartera - pace) * Math.round(priceArs * COMM_RECUR_PCT);
       const total = comNuevos + comCartera;
       if (total >= target.amount || m > 240) break;
     }
@@ -74,12 +72,27 @@ function computeMilestones(pace: number): (Milestone & { months: number; clients
 export default function PartnerCalculator() {
   const [pace, setPace] = useState(5);
   const [months, setMonths] = useState(12);
+  const priceArs = usePlatformSubscriptionPrice();
+  const firstCommission = Math.round((priceArs ?? 0) * COMM_FIRST_PCT);
+  const recurringCommission = Math.round((priceArs ?? 0) * COMM_RECUR_PCT);
 
-  const rows = useMemo(() => computeProjection(pace, months), [pace, months]);
-  const milestones = useMemo(() => computeMilestones(pace), [pace]);
+  const rows = useMemo(
+    () => priceArs === null ? [] : computeProjection(pace, months, priceArs),
+    [pace, months, priceArs],
+  );
+  const milestones = useMemo(
+    () => priceArs === null ? [] : computeMilestones(pace, priceArs),
+    [pace, priceArs],
+  );
   const first = rows[0];
   const last = rows[rows.length - 1];
   const maxTotal = Math.max(...rows.map((r) => r.total), 1);
+
+  if (priceArs === null) {
+    return <div className="partner-calc">Cargando la política comercial vigente...</div>;
+  }
+
+  const currentPriceArs = priceArs;
 
   return (
     <div className="partner-calc">
@@ -87,18 +100,18 @@ export default function PartnerCalculator() {
       <div className="partner-calc__header">
         <h3 className="partner-calc__title">Calculadora de ingresos</h3>
         <p className="partner-calc__subtitle">
-          El {Math.round(COMM_FIRST_PCT * 100)}% de la primera factura es tuyo ({formatArs(COMM_FIRST_AMT)}).
-          El {Math.round(COMM_RECUR_PCT * 100)}% de cada mes siguiente, para siempre ({formatArs(COMM_RECUR_AMT)}/mes).
+          El {Math.round(COMM_FIRST_PCT * 100)}% de la primera factura es tuyo ({formatArs(firstCommission)}).
+          El {Math.round(COMM_RECUR_PCT * 100)}% de cada mes siguiente, para siempre ({formatArs(recurringCommission)}/mes).
         </p>
         <div className="partner-calc__badges">
           <span className="badge badge--green">
-            {Math.round(COMM_FIRST_PCT * 100)}% primera factura · {formatArs(COMM_FIRST_AMT)}
+            {Math.round(COMM_FIRST_PCT * 100)}% primera factura · {formatArs(firstCommission)}
           </span>
           <span className="badge badge--teal">
-            {Math.round(COMM_RECUR_PCT * 100)}% recurrente · {formatArs(COMM_RECUR_AMT)}/mes
+            {Math.round(COMM_RECUR_PCT * 100)}% recurrente · {formatArs(recurringCommission)}/mes
           </span>
           <span className="badge badge--amber">
-            Ticket {formatArs(LIST_PRICE)}/mes
+            Ticket {formatArs(currentPriceArs)}/mes
           </span>
         </div>
       </div>
@@ -139,12 +152,12 @@ export default function PartnerCalculator() {
       <div className="partner-calc__metrics">
         <div className="metric-card">
           <div className="metric-card__label">Comisión primera venta</div>
-          <div className="metric-card__value">{formatArs(COMM_FIRST_AMT)}</div>
+          <div className="metric-card__value">{formatArs(firstCommission)}</div>
           <div className="metric-card__sub">{Math.round(COMM_FIRST_PCT * 100)}% del primer mes</div>
         </div>
         <div className="metric-card">
           <div className="metric-card__label">Comisión mensual por cliente</div>
-          <div className="metric-card__value">{formatArs(COMM_RECUR_AMT)}</div>
+          <div className="metric-card__value">{formatArs(recurringCommission)}</div>
           <div className="metric-card__sub">{Math.round(COMM_RECUR_PCT * 100)}% recurrente</div>
         </div>
         <div className="metric-card metric-card--highlight">

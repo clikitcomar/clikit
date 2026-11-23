@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getSubscriptionPriceOverrideForEmail } from "@/lib/subscription-price-overrides";
 import { resolveSubscriptionPricing } from "@/lib/subscription-offers";
+import { getPlatformSalesPolicy } from "@/lib/platform-sales-policy";
 
 type CreateSubscriptionPayload = {
   origin?: string;
@@ -43,8 +44,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Ya tenes una suscripcion activa." }, { status: 400 });
   }
 
-  const priceOverride = await getSubscriptionPriceOverrideForEmail(session.user.email);
+  const [priceOverride, salesPolicy] = await Promise.all([
+    getSubscriptionPriceOverrideForEmail(session.user.email),
+    getPlatformSalesPolicy(),
+  ]);
   const pricing = resolveSubscriptionPricing({
+    defaultPriceArs: salesPolicy.subscriptionPriceArs,
     emailOverrideAmount: priceOverride?.amount ?? null,
     offerPriceArs: kiosco.subscriptionOfferPriceArs,
     offerFreezeEndsAt: kiosco.subscriptionOfferFreezeEndsAt,

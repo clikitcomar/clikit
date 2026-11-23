@@ -6,11 +6,11 @@ import {
 import { isPlatformAdmin } from "@/lib/platform-admin";
 import { prisma } from "@/lib/prisma";
 import { getSubscriptionPriceOverrideForEmail } from "@/lib/subscription-price-overrides";
+import { getPlatformSalesPolicy } from "@/lib/platform-sales-policy";
 import { syncSubscriptionFromMercadoPago } from "@/lib/subscription";
 import { resolveSubscriptionPricing } from "@/lib/subscription-offers";
 import {
   SUBSCRIPTION_CANCEL_LABEL,
-  SUBSCRIPTION_PRICE_ARS,
   formatSubscriptionPrice,
   getSubscriptionPromoLabel,
 } from "@/lib/subscription-plan";
@@ -105,18 +105,27 @@ export default async function SubscriptionPage({
 
   const freshAccess = await getKioscoAccessContextForSession(session.user);
   const isMercadoPagoReturn = query.source === "mercadopago";
-  const priceOverride =
+  const [priceOverride, salesPolicy] = await Promise.all([
     session.user.role === "EMPLOYEE"
-      ? null
-      : await getSubscriptionPriceOverrideForEmail(session.user.email);
+      ? Promise.resolve(null)
+      : getSubscriptionPriceOverrideForEmail(session.user.email),
+    getPlatformSalesPolicy(),
+  ]);
+  const defaultSubscriptionPriceArs = salesPolicy.subscriptionPriceArs;
   const pricing = resolveSubscriptionPricing({
+    defaultPriceArs: defaultSubscriptionPriceArs,
     emailOverrideAmount: priceOverride?.amount ?? null,
     offerPriceArs: kiosco?.subscriptionOfferPriceArs ?? null,
     offerFreezeEndsAt: kiosco?.subscriptionOfferFreezeEndsAt ?? null,
   });
-  const hasSpecialPrice = pricing.amountArs < SUBSCRIPTION_PRICE_ARS;
+  const hasSpecialPrice = pricing.amountArs < defaultSubscriptionPriceArs;
 
-  if (freshAccess.allowed && !isMercadoPagoReturn) {
+  if (
+    freshAccess.allowed &&
+    freshAccess.reason !== "FREE_TIER" &&
+    freshAccess.reason !== "TRIAL_ACTIVE" &&
+    !isMercadoPagoReturn
+  ) {
     redirect(freshAccess.firstBranchId ? `/${freshAccess.firstBranchId}/caja` : "/");
   }
 
@@ -199,7 +208,7 @@ export default async function SubscriptionPage({
                 <>
                   Precio especial para tu cuenta:{" "}
                   <span style={{ textDecoration: "line-through", opacity: 0.8 }}>
-                    {formatSubscriptionPrice(SUBSCRIPTION_PRICE_ARS)}
+                    {formatSubscriptionPrice(defaultSubscriptionPriceArs)}
                   </span>{" "}
                   <strong style={{ color: "var(--green)" }}>{formatSubscriptionPrice(pricing.amountArs)}</strong>.{" "}
                   {SUBSCRIPTION_CANCEL_LABEL}
@@ -289,7 +298,7 @@ export default async function SubscriptionPage({
             canCreateSubscription={subscription?.status !== "ACTIVE"}
             managementUrl={subscription?.managementUrl ?? null}
             priceArs={pricing.amountArs}
-            compareAtPriceArs={hasSpecialPrice ? SUBSCRIPTION_PRICE_ARS : null}
+            compareAtPriceArs={hasSpecialPrice ? defaultSubscriptionPriceArs : null}
             origin="SUBSCRIPTION_PAGE"
           />
         )}

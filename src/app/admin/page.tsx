@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import AdminRentabilityCalculator from "@/components/admin/AdminRentabilityCalculator";
+import { getPlatformSalesPolicy } from "@/lib/platform-sales-policy";
 import MacroStatsWidget from "@/components/admin/widgets/MacroStatsWidget";
 import OperationsHealthWidget from "@/components/admin/widgets/OperationsHealthWidget";
 import PartnersWidget from "@/components/admin/widgets/PartnersWidget";
@@ -18,7 +19,9 @@ function WidgetSkeleton({ title }: { title: string }) {
   );
 }
 
-export default function AdminDashboard() {
+export default async function AdminDashboard() {
+  const commercialPolicy = await getPlatformSalesPolicy();
+
   return (
     <div className="admin-dashboard">
       <div className="admin-dashboard__header">
@@ -86,7 +89,7 @@ export default function AdminDashboard() {
 
       <section className="admin-dashboard__section">
         <h2 className="admin-dashboard__section-title">Calculadora de rentabilidad</h2>
-        <AdminRentabilityCalculator />
+        <AdminRentabilityCalculator subscriptionPriceArs={commercialPolicy.subscriptionPriceArs} />
       </section>
     </div>
   );
