@@ -3,21 +3,27 @@ on:
   push:
     branches:
       - commercial/free-daily-sales-limit-20261121
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
 permissions:
   contents: write
 jobs:
   apply:
-    if: ${{ !contains(github.event.head_commit.message, '[skip patch workflow]') }}
+    if: ${{ github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[skip patch workflow]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
           fetch-depth: 0
       - name: Apply patch and remove helper files
         env:
-          BRANCH_NAME: ${{ github.ref_name }}
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: |
           set -euo pipefail
           base64 -d .github/patches/sales-policy.patch.gz | gzip -dc > /tmp/sales-policy.patch
