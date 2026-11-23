@@ -1,7 +1,8 @@
 
 "use client";
 
-import { SUBSCRIPTION_CANCEL_LABEL, SUBSCRIPTION_PRICE_ARS, formatSubscriptionPrice, getSubscriptionPromoLabel } from "@/lib/subscription-plan";
+import { SUBSCRIPTION_CANCEL_LABEL, formatSubscriptionPrice, getSubscriptionPromoLabel } from "@/lib/subscription-plan";
+import { usePlatformSubscriptionPrice } from "@/lib/hooks/use-platform-subscription-price";
 import type { Employee, Subscription } from "../types";
 
 interface EquipoTabProps {
@@ -38,6 +39,9 @@ export default function EquipoTab({
   setCancelModalOpen,
   setEmployeeModal,
 }: EquipoTabProps) {
+  const platformPriceArs = usePlatformSubscriptionPrice();
+  const displayedPriceArs = subscription?.amountArs ?? platformPriceArs;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* Suscripción */}
@@ -86,8 +90,8 @@ export default function EquipoTab({
               ) : (
                 <>
                   <div style={{ fontSize: "14px", color: "var(--text-2)", lineHeight: 1.6 }}>
-                    <p style={{ margin: "0 0 8px" }}>{getSubscriptionPromoLabel(subscription?.amountArs ?? SUBSCRIPTION_PRICE_ARS)}</p>
-                    <p style={{ margin: 0, fontSize: "13px", color: "var(--text-3)" }}>{formatSubscriptionPrice(subscription?.amountArs ?? SUBSCRIPTION_PRICE_ARS)} {SUBSCRIPTION_CANCEL_LABEL}</p>
+                    <p style={{ margin: "0 0 8px" }}>{displayedPriceArs === null ? "Consultando precio vigente..." : getSubscriptionPromoLabel(displayedPriceArs)}</p>
+                    <p style={{ margin: 0, fontSize: "13px", color: "var(--text-3)" }}>{displayedPriceArs === null ? "Precio mensual" : formatSubscriptionPrice(displayedPriceArs)} {SUBSCRIPTION_CANCEL_LABEL}</p>
                   </div>
                   {subscription && subscription.status !== "NOT_CONFIGURED" ? (
                     <div style={{ borderTop: "1px solid var(--border)", paddingTop: "12px" }}>

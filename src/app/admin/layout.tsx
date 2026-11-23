@@ -274,6 +274,14 @@ export default async function AdminLayout({
               Negocios
             </Link>
 
+            <Link href="/admin/politica-comercial" className="admin-nav__link">
+              <svg className="admin-nav__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M2 3.5h12M2 8h12M2 12.5h7" />
+                <circle cx="12" cy="12" r="2" />
+              </svg>
+              Plan y límites
+            </Link>
+
             <Link href="/admin/platform-coupons" className="admin-nav__link">
               <svg className="admin-nav__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <rect x="2" y="5" width="12" height="9" rx="2" />

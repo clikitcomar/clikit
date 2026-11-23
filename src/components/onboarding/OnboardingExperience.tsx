@@ -5,10 +5,14 @@ import { useRouter } from "next/navigation";
 
 import {
   SUBSCRIPTION_CANCEL_LABEL,
-  SUBSCRIPTION_PROMO_LABEL,
+  getSubscriptionPromoLabel,
 } from "@/lib/subscription-plan";
 
-export default function OnboardingExperience() {
+export default function OnboardingExperience({
+  subscriptionPriceArs,
+}: {
+  subscriptionPriceArs: number;
+}) {
   const [kioscoName, setKioscoName] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("Creando kiosco...");
@@ -164,7 +168,7 @@ export default function OnboardingExperience() {
             </button>
 
             <p style={{ textAlign: "center", fontSize: "12px", color: "var(--text-3)", margin: 0 }}>
-              {SUBSCRIPTION_PROMO_LABEL} {SUBSCRIPTION_CANCEL_LABEL}
+              {getSubscriptionPromoLabel(subscriptionPriceArs)} {SUBSCRIPTION_CANCEL_LABEL}
             </p>
           </div>
         )}

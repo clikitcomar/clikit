@@ -9,10 +9,10 @@ import TicketModal from "@/components/ticket/TicketModal";
 import ThemeEditor from "@/components/ui/ThemeEditor";
 import {
   SUBSCRIPTION_CANCEL_LABEL,
-  SUBSCRIPTION_PRICE_ARS,
   formatSubscriptionPrice,
   getSubscriptionPromoLabel,
 } from "@/lib/subscription-plan";
+import { usePlatformSubscriptionPrice } from "@/lib/hooks/use-platform-subscription-price";
 import { optimizeBrandingImage } from "@/lib/image-upload";
 import type { TicketPreviewData } from "@/lib/ticket-format";
 import { getTicketPrintModeLabel, type TicketPrintMode } from "@/lib/ticketing";
@@ -605,6 +605,7 @@ export default function ConfiguracionPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const isOwner = session?.user?.role === "OWNER";
+  const platformSubscriptionPriceArs = usePlatformSubscriptionPrice();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -620,6 +621,7 @@ export default function ConfiguracionPage() {
   const [loadingFiscalSettings, setLoadingFiscalSettings] = useState(true);
 
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const displayedSubscriptionPriceArs = subscription?.amountArs ?? platformSubscriptionPriceArs;
   const [creatingSubscription, setCreatingSubscription] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const [cancelingSubscription, setCancelingSubscription] = useState(false);
@@ -2609,10 +2611,10 @@ export default function ConfiguracionPage() {
                   {(!subscription || subscription.status === "NOT_CONFIGURED") && <span style={{ color: "var(--text-3)" }}>No configurada</span>}
                 </div>
               </div>
-              <div style={{ fontSize: "20px", fontWeight: 800 }}>{formatSubscriptionPrice(subscription?.amountArs ?? SUBSCRIPTION_PRICE_ARS)}<span style={{ fontSize: "12px", color: "var(--text-3)", fontWeight: 500 }}> por mes</span></div>
+              <div style={{ fontSize: "20px", fontWeight: 800 }}>{displayedSubscriptionPriceArs === null ? "Consultando precio..." : formatSubscriptionPrice(displayedSubscriptionPriceArs)}<span style={{ fontSize: "12px", color: "var(--text-3)", fontWeight: 500 }}> por mes</span></div>
             </div>
             <div style={{ fontSize: "12px", color: "var(--text-3)" }}>
-              {getSubscriptionPromoLabel(subscription?.amountArs ?? SUBSCRIPTION_PRICE_ARS)} {SUBSCRIPTION_CANCEL_LABEL}
+              {displayedSubscriptionPriceArs === null ? "Precio mensual" : getSubscriptionPromoLabel(displayedSubscriptionPriceArs)} {SUBSCRIPTION_CANCEL_LABEL}
             </div>
             
             {subscription?.managementUrl && (

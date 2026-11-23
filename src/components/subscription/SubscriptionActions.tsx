@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   SUBSCRIPTION_CANCEL_LABEL,
-  SUBSCRIPTION_PRICE_ARS,
   formatSubscriptionPrice,
   getSubscriptionPromoLabel,
 } from "@/lib/subscription-plan";
@@ -12,7 +11,7 @@ import {
 type Props = {
   canCreateSubscription: boolean;
   managementUrl: string | null;
-  priceArs?: number;
+  priceArs: number;
   compareAtPriceArs?: number | null;
   origin?: string;
 };
@@ -20,7 +19,7 @@ type Props = {
 export default function SubscriptionActions({
   canCreateSubscription,
   managementUrl,
-  priceArs = SUBSCRIPTION_PRICE_ARS,
+  priceArs,
   compareAtPriceArs = null,
   origin = "SUBSCRIPTION_PAGE",
 }: Props) {

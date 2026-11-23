@@ -4,7 +4,8 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import BrandLogo from "@/components/branding/BrandLogo";
-import { SUBSCRIPTION_PROMO_LABEL } from "@/lib/subscription-plan";
+import { getSubscriptionPromoLabel } from "@/lib/subscription-plan";
+import { getPlatformSalesPolicy } from "@/lib/platform-sales-policy";
 import ReferralCookieSetter from "./ReferralCookieSetter";
 
 interface PartnerViewPageProps {
@@ -46,6 +47,8 @@ export async function generateMetadata({ params }: PartnerViewPageProps): Promis
 
 export default async function PartnerViewPage({ params }: PartnerViewPageProps) {
   const { slug } = await params;
+  const salesPolicy = await getPlatformSalesPolicy();
+  const subscriptionPromoLabel = getSubscriptionPromoLabel(salesPolicy.subscriptionPriceArs);
 
   const partner = await prisma.partnerProfile.findUnique({
     where: { referralCode: slug },
@@ -366,7 +369,7 @@ export default async function PartnerViewPage({ params }: PartnerViewPageProps) 
           <div className="pv-cta-glow" />
           <h2>{displayName} te invita a probar Clikit</h2>
           <p>
-            Creá tu cuenta ahora. {SUBSCRIPTION_PROMO_LABEL} Sin configuración, sin permanencia.
+            Creá tu cuenta ahora. {subscriptionPromoLabel} Sin configuración, sin permanencia.
           </p>
           <div className="pv-cta-btns">
             <Link href={registerHref} className="pv-btn pv-btn-cta pv-btn-lg">Crear mi cuenta</Link>

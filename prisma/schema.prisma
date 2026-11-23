@@ -1375,6 +1375,17 @@ model PlatformCouponRedemption {
   @@index([kioscoId])
 }
 
+model PlatformSalesPolicy {
+  id                   String   @id @default("global")
+  freeDailySalesLimit  Int      @default(15)
+  subscriptionPriceArs Int      @default(36900)
+  timeZone             String   @default("America/Argentina/Buenos_Aires")
+  updatedById          String?
+  updatedByEmail       String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
 enum PlatformCouponType {
   TRIAL_DAYS
   SUBSCRIPTION_DISCOUNT

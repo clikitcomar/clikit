@@ -2,19 +2,19 @@
 
 import { useMemo, useState } from "react";
 
-import {
-  COMM_FIRST_AMT,
-  COMM_RECUR_AMT,
-  LIST_PRICE,
-  MP_NETO,
-  formatArs,
-} from "@/lib/pricing-constants";
+import { formatArs } from "@/lib/pricing-constants";
 
 import styles from "./AdminRentabilityCalculator.module.css";
 
-const MP_FEE = LIST_PRICE - MP_NETO;
-const NET_FIRST_MONTH = MP_NETO - COMM_FIRST_AMT;
-const NET_RECURRING_MONTH = MP_NETO - COMM_RECUR_AMT;
+interface PricingModel {
+  listPrice: number;
+  mpNeto: number;
+  mpFee: number;
+  firstCommission: number;
+  recurringCommission: number;
+  netFirstMonth: number;
+  netRecurringMonth: number;
+}
 
 interface MonthData {
   bruto: number;
@@ -42,12 +42,12 @@ function cx(...classNames: Array<keyof typeof styles>) {
   return classNames.map((className) => styles[className]).join(" ");
 }
 
-function computeMonth(totalClients: number, newClients: number): MonthData {
+function computeMonth(totalClients: number, newClients: number, pricing: PricingModel): MonthData {
   const recurrentClients = totalClients - newClients;
-  const bruto = totalClients * LIST_PRICE;
-  const mpFeeTotal = totalClients * MP_FEE;
-  const mpNeto = totalClients * MP_NETO;
-  const commVend = newClients * COMM_FIRST_AMT + recurrentClients * COMM_RECUR_AMT;
+  const bruto = totalClients * pricing.listPrice;
+  const mpFeeTotal = totalClients * pricing.mpFee;
+  const mpNeto = totalClients * pricing.mpNeto;
+  const commVend = newClients * pricing.firstCommission + recurrentClients * pricing.recurringCommission;
   const ganancia = mpNeto - commVend;
 
   return {
@@ -66,6 +66,7 @@ function computeProjection(
   startClients: number,
   newPerMonth: number,
   months: number,
+  pricing: PricingModel,
 ): ProjectionRow[] {
   const rows: ProjectionRow[] = [];
   let clients = startClients;
@@ -78,10 +79,10 @@ function computeProjection(
     }
 
     const recurrentClients = clients - actualNew;
-    const bruto = clients * LIST_PRICE;
-    const mpFeeTotal = clients * MP_FEE;
-    const mpNeto = clients * MP_NETO;
-    const commVend = actualNew * COMM_FIRST_AMT + recurrentClients * COMM_RECUR_AMT;
+    const bruto = clients * pricing.listPrice;
+    const mpFeeTotal = clients * pricing.mpFee;
+    const mpNeto = clients * pricing.mpNeto;
+    const commVend = actualNew * pricing.firstCommission + recurrentClients * pricing.recurringCommission;
     const ganancia = mpNeto - commVend;
 
     rows.push({
@@ -99,18 +100,38 @@ function computeProjection(
   return rows;
 }
 
-export default function AdminRentabilityCalculator() {
+export default function AdminRentabilityCalculator({
+  subscriptionPriceArs,
+}: {
+  subscriptionPriceArs: number;
+}) {
   const [totalClients, setTotalClients] = useState(100);
   const [newClients, setNewClients] = useState(20);
 
+  const pricing = useMemo<PricingModel>(() => {
+    // Estimación proporcional basada en el neto histórico acreditado por Mercado Pago.
+    const mpNeto = Math.round(subscriptionPriceArs * (13709.98 / 14900));
+    const firstCommission = Math.round(subscriptionPriceArs * 0.5);
+    const recurringCommission = Math.round(subscriptionPriceArs * 0.3);
+    return {
+      listPrice: subscriptionPriceArs,
+      mpNeto,
+      mpFee: subscriptionPriceArs - mpNeto,
+      firstCommission,
+      recurringCommission,
+      netFirstMonth: mpNeto - firstCommission,
+      netRecurringMonth: mpNeto - recurringCommission,
+    };
+  }, [subscriptionPriceArs]);
+
   const effectiveNew = Math.min(newClients, totalClients);
   const data = useMemo(
-    () => computeMonth(totalClients, effectiveNew),
-    [effectiveNew, totalClients],
+    () => computeMonth(totalClients, effectiveNew, pricing),
+    [effectiveNew, pricing, totalClients],
   );
   const projection = useMemo(
-    () => computeProjection(totalClients, effectiveNew, 12),
-    [effectiveNew, totalClients],
+    () => computeProjection(totalClients, effectiveNew, 12, pricing),
+    [effectiveNew, pricing, totalClients],
   );
 
   const pctGanancia = data.bruto > 0 ? Math.round((data.ganancia / data.bruto) * 100) : 0;
@@ -140,7 +161,7 @@ export default function AdminRentabilityCalculator() {
             Precio de lista
             <small>lo que paga el cliente</small>
           </span>
-          <span className={cx("wf-val", "wf-val--base")}>{formatArs(LIST_PRICE)}</span>
+          <span className={cx("wf-val", "wf-val--base")}>{formatArs(pricing.listPrice)}</span>
         </div>
         <div className={styles["wf-row"]}>
           <span className={styles["wf-label"]}>
@@ -148,9 +169,9 @@ export default function AdminRentabilityCalculator() {
             <small>~8% aprox - suscripcion</small>
           </span>
           <span className={cx("wf-val", "wf-val--neg")}>
-            - {formatArs(MP_FEE)}
+            - {formatArs(pricing.mpFee)}
             <span className={styles["wf-pct"]}>
-              {Math.round((MP_FEE / LIST_PRICE) * 100)}%
+              {Math.round((pricing.mpFee / pricing.listPrice) * 100)}%
             </span>
           </span>
         </div>
@@ -159,23 +180,23 @@ export default function AdminRentabilityCalculator() {
             Neto recibido de MP
             <small>acreditado en tu cuenta</small>
           </span>
-          <span className={cx("wf-val", "wf-val--base")}>{formatArs(MP_NETO)}</span>
+          <span className={cx("wf-val", "wf-val--base")}>{formatArs(pricing.mpNeto)}</span>
         </div>
         <div className={styles["wf-row"]}>
           <span className={styles["wf-label"]}>
             Comision vendedor - primera factura
-            <small>{Math.round((COMM_FIRST_AMT / LIST_PRICE) * 100)}% del precio de lista</small>
+            <small>{Math.round((pricing.firstCommission / pricing.listPrice) * 100)}% del precio de lista</small>
           </span>
           <span className={cx("wf-val", "wf-val--neg")}>
-            - {formatArs(COMM_FIRST_AMT)}
+            - {formatArs(pricing.firstCommission)}
             <span className={styles["wf-pct"]}>
-              {Math.round((COMM_FIRST_AMT / LIST_PRICE) * 100)}%
+              {Math.round((pricing.firstCommission / pricing.listPrice) * 100)}%
             </span>
           </span>
         </div>
         <div className={cx("wf-row", "wf-row--total")}>
           <span className={cx("wf-label", "wf-label--total")}>Te queda - mes 1</span>
-          <span className={cx("wf-val", "wf-val--result")}>{formatArs(NET_FIRST_MONTH)}</span>
+          <span className={cx("wf-val", "wf-val--result")}>{formatArs(pricing.netFirstMonth)}</span>
         </div>
       </div>
 
@@ -188,7 +209,7 @@ export default function AdminRentabilityCalculator() {
             Precio de lista
             <small>lo que paga el cliente</small>
           </span>
-          <span className={cx("wf-val", "wf-val--base")}>{formatArs(LIST_PRICE)}</span>
+          <span className={cx("wf-val", "wf-val--base")}>{formatArs(pricing.listPrice)}</span>
         </div>
         <div className={styles["wf-row"]}>
           <span className={styles["wf-label"]}>
@@ -196,9 +217,9 @@ export default function AdminRentabilityCalculator() {
             <small>~8% aprox - suscripcion</small>
           </span>
           <span className={cx("wf-val", "wf-val--neg")}>
-            - {formatArs(MP_FEE)}
+            - {formatArs(pricing.mpFee)}
             <span className={styles["wf-pct"]}>
-              {Math.round((MP_FEE / LIST_PRICE) * 100)}%
+              {Math.round((pricing.mpFee / pricing.listPrice) * 100)}%
             </span>
           </span>
         </div>
@@ -207,24 +228,24 @@ export default function AdminRentabilityCalculator() {
             Neto recibido de MP
             <small>acreditado en tu cuenta</small>
           </span>
-          <span className={cx("wf-val", "wf-val--base")}>{formatArs(MP_NETO)}</span>
+          <span className={cx("wf-val", "wf-val--base")}>{formatArs(pricing.mpNeto)}</span>
         </div>
         <div className={styles["wf-row"]}>
           <span className={styles["wf-label"]}>
             Comision vendedor - recurrente
-            <small>{Math.round((COMM_RECUR_AMT / LIST_PRICE) * 100)}% del precio de lista</small>
+            <small>{Math.round((pricing.recurringCommission / pricing.listPrice) * 100)}% del precio de lista</small>
           </span>
           <span className={cx("wf-val", "wf-val--neg")}>
-            - {formatArs(COMM_RECUR_AMT)}
+            - {formatArs(pricing.recurringCommission)}
             <span className={styles["wf-pct"]}>
-              {Math.round((COMM_RECUR_AMT / LIST_PRICE) * 100)}%
+              {Math.round((pricing.recurringCommission / pricing.listPrice) * 100)}%
             </span>
           </span>
         </div>
         <div className={cx("wf-row", "wf-row--total")}>
           <span className={cx("wf-label", "wf-label--total")}>Te queda - mes 2+</span>
           <span className={cx("wf-val", "wf-val--result2")}>
-            {formatArs(NET_RECURRING_MONTH)}
+            {formatArs(pricing.netRecurringMonth)}
           </span>
         </div>
       </div>
@@ -275,7 +296,7 @@ export default function AdminRentabilityCalculator() {
         <div className={cx("metric-card", "metric-card--teal2")}>
           <div className={styles["metric-card__label"]}>Por cliente recurrente</div>
           <div className={styles["metric-card__value"]}>
-            {formatArs(NET_RECURRING_MONTH)}
+            {formatArs(pricing.netRecurringMonth)}
           </div>
           <div className={styles["metric-card__sub"]}>mes 2 en adelante</div>
         </div>

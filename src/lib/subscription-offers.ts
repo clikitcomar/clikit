@@ -1,5 +1,3 @@
-import { SUBSCRIPTION_PRICE_ARS } from "@/lib/subscription-plan";
-
 export const NEW_ACCOUNT_SUBSCRIPTION_FREEZE_MONTHS = 24;
 
 export type SubscriptionPricingSource =
@@ -38,9 +36,17 @@ export function addMonths(date: Date, months: number) {
   return next;
 }
 
-export function buildNewAccountSubscriptionOffer(now = new Date()) {
+export function buildNewAccountSubscriptionOffer(
+  defaultPriceArs: number,
+  now = new Date(),
+) {
+  const validatedDefaultPriceArs = roundPositiveInteger(defaultPriceArs);
+  if (validatedDefaultPriceArs === null) {
+    throw new Error("La política comercial no tiene un precio de suscripción válido.");
+  }
+
   return {
-    priceArs: SUBSCRIPTION_PRICE_ARS,
+    priceArs: validatedDefaultPriceArs,
     freezeEndsAt: addMonths(now, NEW_ACCOUNT_SUBSCRIPTION_FREEZE_MONTHS),
   };
 }
@@ -68,7 +74,10 @@ export function resolveSubscriptionPricing(args: {
   defaultPriceArs?: number;
   at?: Date;
 }): ResolvedSubscriptionPricing {
-  const defaultPriceArs = roundPositiveInteger(args.defaultPriceArs) ?? SUBSCRIPTION_PRICE_ARS;
+  const defaultPriceArs = roundPositiveInteger(args.defaultPriceArs);
+  if (defaultPriceArs === null) {
+    throw new Error("La política comercial no tiene un precio de suscripción válido.");
+  }
   const emailOverrideAmount = roundPositiveInteger(args.emailOverrideAmount);
   if (emailOverrideAmount) {
     return {

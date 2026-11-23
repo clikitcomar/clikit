@@ -7,7 +7,8 @@ import {
   parseSubscriptionPriceOverrideAmount,
 } from "@/lib/subscription-price-overrides";
 import { syncSubscriptionFromMercadoPago } from "@/lib/subscription";
-import { SUBSCRIPTION_PRICE_ARS, formatSubscriptionPrice } from "@/lib/subscription-plan";
+import { formatSubscriptionPrice } from "@/lib/subscription-plan";
+import { getPlatformSalesPolicy } from "@/lib/platform-sales-policy";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -117,8 +118,9 @@ async function saveSubscriptionPriceOverride(formData: FormData) {
   const normalizedEmail = normalizeSubscriptionPriceOverrideEmail(rawEmail);
   const amount = parseSubscriptionPriceOverrideAmount(formData.get("amount"));
   const note = String(formData.get("note") ?? "").trim();
+  const commercialPolicy = await getPlatformSalesPolicy();
 
-  if (!normalizedEmail || !normalizedEmail.includes("@") || !amount || amount >= SUBSCRIPTION_PRICE_ARS) {
+  if (!normalizedEmail || !normalizedEmail.includes("@") || !amount || amount >= commercialPolicy.subscriptionPriceArs) {
     return;
   }
 
@@ -186,6 +188,8 @@ async function syncKioscoSubscription(formData: FormData) {
 
 export default async function AdminPage() {
   await ensurePlatformAdmin();
+  const commercialPolicy = await getPlatformSalesPolicy();
+  const subscriptionListPriceArs = commercialPolicy.subscriptionPriceArs;
 
   const kioscos = await prisma.kiosco.findMany({
     orderBy: { createdAt: "desc" },
@@ -360,7 +364,7 @@ export default async function AdminPage() {
             <div style={{ color: "#94a3b8", lineHeight: 1.6 }}>
               Asigna un precio especial por email. Sirve tanto para clientes ya registrados como para alguien que se
               va a registrar despues con ese mismo correo. Precio base actual:{" "}
-              <strong style={{ color: "white" }}>{formatSubscriptionPrice(SUBSCRIPTION_PRICE_ARS)}</strong>.
+              <strong style={{ color: "white" }}>{formatSubscriptionPrice(subscriptionListPriceArs)}</strong>.
             </div>
           </div>
 
@@ -390,8 +394,8 @@ export default async function AdminPage() {
                 name="amount"
                 type="number"
                 min={1}
-                max={Math.max(SUBSCRIPTION_PRICE_ARS - 1, 1)}
-                defaultValue={Math.max(SUBSCRIPTION_PRICE_ARS - 5000, 1)}
+                max={Math.max(subscriptionListPriceArs - 1, 1)}
+                defaultValue={Math.max(subscriptionListPriceArs - 5000, 1)}
                 className="input"
                 required
               />

@@ -278,16 +278,18 @@ describe("Offline Support", () => {
   });
 });
 
-describe("Pricing Constants", () => {
-  it("has valid pricing chain", async () => {
-    const { LIST_PRICE, MP_NETO, COMM_FIRST_AMT, COMM_RECUR_AMT, NET_MONTH1, NET_RECUR } = await import("@/lib/pricing-constants");
-    expect(LIST_PRICE).toBeGreaterThan(0);
-    expect(MP_NETO).toBeLessThan(LIST_PRICE);
-    expect(COMM_FIRST_AMT).toBeGreaterThan(0);
-    expect(COMM_RECUR_AMT).toBeGreaterThan(0);
-    expect(NET_MONTH1).toBeGreaterThan(0);
-    expect(NET_RECUR).toBeGreaterThan(0);
-    expect(COMM_FIRST_AMT).toBeGreaterThan(COMM_RECUR_AMT);
+describe("Pricing policy calculations", () => {
+  it("derive commissions from the supplied commercial price", async () => {
+    const { COMM_FIRST_PCT, COMM_RECUR_PCT, estimateMpNet } = await import("@/lib/pricing-constants");
+    const priceArs = 36900;
+    const firstCommission = Math.round(priceArs * COMM_FIRST_PCT);
+    const recurringCommission = Math.round(priceArs * COMM_RECUR_PCT);
+    const mpNet = estimateMpNet(priceArs);
+
+    expect(mpNet).toBeLessThan(priceArs);
+    expect(firstCommission).toBeGreaterThan(recurringCommission);
+    expect(mpNet - firstCommission).toBeGreaterThan(0);
+    expect(mpNet - recurringCommission).toBeGreaterThan(0);
   });
 });
 

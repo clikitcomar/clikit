@@ -24,6 +24,7 @@ import InvoiceModal from "@/components/fiscal/InvoiceModal";
 import type { InvoicePreviewData } from "@/lib/invoice-format";
 import DigitalSalesCarousel from "@/components/caja/DigitalSalesCarousel";
 import OperationalSubscriptionModal from "@/components/subscription/OperationalSubscriptionModal";
+import DailySalesLimitModal from "@/components/subscription/DailySalesLimitModal";
 import { CheckoutTour } from "@/components/onboarding/CheckoutTour";
 
 import { savePendingSale } from "@/lib/offline/db";
@@ -436,6 +437,22 @@ export default function CajaPage() {
   const [showSubscriptionPrompt, setShowSubscriptionPrompt] = useState(false);
   const [activatingSubscription, setActivatingSubscription] = useState(false);
   const [subscriptionPromptError, setSubscriptionPromptError] = useState("");
+  const [dailySalesUsage, setDailySalesUsage] = useState<{
+    isMetered: boolean;
+    used?: number;
+    limit?: number;
+    remaining?: number;
+    priceArs: number;
+    nextResetAt?: string;
+  } | null>(null);
+  const [dailySalesLimitPrompt, setDailySalesLimitPrompt] = useState<{
+    used: number;
+    limit: number;
+    priceArs: number;
+    nextResetAt: string;
+    timeZone: string;
+    canManageSubscription: boolean;
+  } | null>(null);
   const [activatingPreviewSubscription, setActivatingPreviewSubscription] = useState(false);
   const [previewSubscriptionError, setPreviewSubscriptionError] = useState("");
   
@@ -444,6 +461,56 @@ export default function CajaPage() {
   const handleBarcodeScanRef = useRef<(code: string) => void>(() => {});
   const hasPlayedStartupRef = useRef(false);
   const prevPromosCountRef = useRef(0);
+
+  const refreshDailySalesUsage = useCallback(async () => {
+    if (!branchId) return;
+    try {
+      const response = await fetch("/api/subscription/daily-usage", {
+        cache: "no-store",
+        headers: { "x-branch-id": branchId },
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      setDailySalesUsage(data);
+    } catch {
+      // El indicador es informativo; la validación real siempre ocurre en el servidor.
+    }
+  }, [branchId]);
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      void refreshDailySalesUsage();
+    }
+  }, [status, refreshDailySalesUsage]);
+
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refreshDailySalesUsage();
+      }
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [refreshDailySalesUsage]);
+
+  useEffect(() => {
+    const nextResetAt = dailySalesUsage?.nextResetAt;
+    if (!dailySalesUsage?.isMetered || !nextResetAt) return;
+
+    const resetDelay = new Date(nextResetAt).getTime() - Date.now();
+    if (!Number.isFinite(resetDelay)) return;
+
+    const timeout = window.setTimeout(
+      () => void refreshDailySalesUsage(),
+      Math.max(1000, resetDelay + 1000),
+    );
+    return () => window.clearTimeout(timeout);
+  }, [dailySalesUsage?.isMetered, dailySalesUsage?.nextResetAt, refreshDailySalesUsage]);
+
   const allowNegativeStock = products[0]?.allowNegativeStock ?? false;
   const blindClose = products[0]?.blindClose ?? false;
   
@@ -1428,8 +1495,12 @@ export default function CajaPage() {
               const errorText = await res.text().catch(() => "");
               let serverMessage = "";
               let serverCode = "";
+              let serverDetails: Record<string, unknown> | null = null;
               try {
                 const parsed = JSON.parse(errorText);
+                if (parsed && typeof parsed === "object") {
+                  serverDetails = parsed as Record<string, unknown>;
+                }
                 if (parsed && typeof parsed.error === "string") {
                   serverMessage = parsed.error;
                 }
@@ -1438,6 +1509,43 @@ export default function CajaPage() {
                 }
               } catch {}
               console.error("[Ventas] Error HTTP registrando venta:", res.status, errorText);
+              if (serverCode === "DAILY_SALES_LIMIT_REACHED" && serverDetails) {
+                const used = Number(serverDetails.used);
+                const limit = Number(serverDetails.limit);
+                const priceArs = Number(serverDetails.priceArs);
+                const nextResetAt = typeof serverDetails.nextResetAt === "string"
+                  ? serverDetails.nextResetAt
+                  : "";
+                const timeZone = typeof serverDetails.timeZone === "string"
+                  ? serverDetails.timeZone
+                  : "America/Argentina/Buenos_Aires";
+                if (
+                  Number.isFinite(used) &&
+                  Number.isFinite(limit) &&
+                  Number.isFinite(priceArs) &&
+                  nextResetAt
+                ) {
+                  setDailySalesLimitPrompt({
+                    used,
+                    limit,
+                    priceArs,
+                    nextResetAt,
+                    timeZone,
+                    canManageSubscription: serverDetails.canManageSubscription === true,
+                  });
+                  setDailySalesUsage({
+                    isMetered: true,
+                    used,
+                    limit,
+                    remaining: 0,
+                    priceArs,
+                    nextResetAt,
+                  });
+                  setShowCashNumpad(false);
+                  void playAudio("/blip_clikit.wav", 0.8);
+                  return;
+                }
+              }
               if (res.status === 402 || serverCode === "NO_SUBSCRIPTION_OPERATIONAL") {
                 setPreviewSubscriptionError("");
                 setPreviewSale({
@@ -1455,6 +1563,7 @@ export default function CajaPage() {
           const sale = await res.json();
           newSale.id = sale.id;
           newSale.ticketNumber = typeof sale.ticketNumber === "number" ? sale.ticketNumber : null;
+          void refreshDailySalesUsage();
         } else {
           // OFFLINE SAVE (sin conexión)
           try {
@@ -2324,7 +2433,34 @@ export default function CajaPage() {
           </div>
         )}
       </div>
-      
+
+      {dailySalesUsage?.isMetered && typeof dailySalesUsage.used === "number" && typeof dailySalesUsage.limit === "number" && (
+        <div
+          role="status"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 10,
+            padding: "7px 16px",
+            background: dailySalesUsage.remaining === 0 ? "rgba(245,158,11,.10)" : "var(--surface)",
+            borderBottom: "1px solid var(--border)",
+            color: "var(--text-2)",
+            fontSize: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <span>
+            Plan gratuito · {dailySalesUsage.used} de {dailySalesUsage.limit} ventas de hoy
+          </span>
+          <span style={{ fontWeight: 700 }}>
+            {dailySalesUsage.remaining === 0
+              ? "Cupo diario utilizado"
+              : "Se renueva al comenzar el día"}
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", background: "var(--surface-2)", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
         {activeShift ? (
@@ -3631,6 +3767,18 @@ export default function CajaPage() {
             </div>
           </div>
         </ModalPortal>
+      )}
+
+      {dailySalesLimitPrompt && (
+        <DailySalesLimitModal
+          used={dailySalesLimitPrompt.used}
+          limit={dailySalesLimitPrompt.limit}
+          priceArs={dailySalesLimitPrompt.priceArs}
+          nextResetAt={dailySalesLimitPrompt.nextResetAt}
+          timeZone={dailySalesLimitPrompt.timeZone}
+          canManageSubscription={dailySalesLimitPrompt.canManageSubscription}
+          onClose={() => setDailySalesLimitPrompt(null)}
+        />
       )}
 
       {showSubscriptionPrompt && (

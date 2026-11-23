@@ -17,7 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { provisionOwnerKiosco } from "@/lib/provision-owner-kiosco";
 import { normalizeSubscriptionPriceOverrideEmail } from "@/lib/subscription-price-overrides";
 import { buildNewAccountSubscriptionOffer } from "@/lib/subscription-offers";
-import { SUBSCRIPTION_PRICE_ARS } from "@/lib/subscription-plan";
+import { getPlatformSalesPolicy } from "@/lib/platform-sales-policy";
 
 type RegisterPayload = {
   firstName?: string;
@@ -92,7 +92,11 @@ export async function POST(req: Request) {
     const seedDefaultCatalog = await shouldSeedDefaultCatalogForBusinessActivity(
       mainBusinessActivity,
     );
-    const subscriptionOffer = buildNewAccountSubscriptionOffer();
+    const commercialPolicy = await getPlatformSalesPolicy();
+    const subscriptionOffer = buildNewAccountSubscriptionOffer(
+      commercialPolicy.subscriptionPriceArs,
+      new Date(),
+    );
 
     const created = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -169,7 +173,7 @@ export async function POST(req: Request) {
 
       if (typeof couponBenefit?.discountPct === "number" && couponBenefit.discountPct > 0) {
         const discountedAmount = Math.round(
-          SUBSCRIPTION_PRICE_ARS * (1 - couponBenefit.discountPct / 100),
+          commercialPolicy.subscriptionPriceArs * (1 - couponBenefit.discountPct / 100),
         );
 
         await tx.subscriptionPriceOverride.create({
