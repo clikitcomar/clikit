@@ -26,7 +26,7 @@ jobs:
           BRANCH_NAME: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: |
           set -euo pipefail
-          base64 -d .github/patches/sales-policy.patch.gz | gzip -dc > /tmp/sales-policy.patch
+          gzip -dc .github/patches/sales-policy.patch.gz > /tmp/sales-policy.patch
           git apply --check /tmp/sales-policy.patch
           git apply /tmp/sales-policy.patch
           rm -f .github/patches/sales-policy.patch.gz .github/workflows/finish-sales-policy-patch.yml
